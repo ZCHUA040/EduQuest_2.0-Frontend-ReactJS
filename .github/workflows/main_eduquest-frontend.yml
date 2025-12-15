@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKERHUB_REPO: xeroxisxs/eduquest-frontend-reactjs
+  DOCKERHUB_REPO: zchua040/eduquest-frontend-reactjs
 
 jobs:
   build-push:
