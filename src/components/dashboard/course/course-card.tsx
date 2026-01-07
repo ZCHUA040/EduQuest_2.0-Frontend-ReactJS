@@ -49,12 +49,18 @@ export function CourseCard({ rows = [] }: CourseCardProps): React.JSX.Element {
               component={RouterLink}
             >
               <CardHeader title={`${course.code} ${course.name}`} sx={{ width: '100%'}}/>
+            {course.image?.filename ? (
               <CardMedia
                 component="img"
-                alt={course.image.name}
+                alt={course.image?.name || course.name}
                 image={`/assets/${course.image.filename}`}
                 sx={{ width: '100%'}}
               />
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                No course image available.
+              </Typography>
+            )}
               <CardContent sx={{ flex: 1, width: '100%' }}>
                 <Chip label={course.type} sx={{ mb: 1.5, mr: 1 }} color={
                   course.type === 'System-enroll' ? 'primary' :

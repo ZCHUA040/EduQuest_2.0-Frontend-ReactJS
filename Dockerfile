@@ -27,6 +27,9 @@ COPY --from=builder /home/app/.next/static /home/app/standalone/.next/static
 COPY --from=builder /home/app/entrypoint.sh ./scripts/entrypoint.sh
 COPY --from=builder /home/app/.env.production ./.env.production
 
+# Ensure bash is available for the entrypoint script.
+RUN apt-get update && apt-get install -y bash && rm -rf /var/lib/apt/lists/*
+
 # Set the environment variables
 ENV PORT=80
 EXPOSE 80

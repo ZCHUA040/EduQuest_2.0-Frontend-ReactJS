@@ -247,11 +247,17 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
           <CardContent sx={{pb: '16px'}}>
             <Grid container spacing={3}>
               <Grid md={3} xs={12} display="flex" justifyContent="center" alignItems="center">
-                <CardMedia
-                  component="img"
-                  alt="cloud computing"
-                  image={`/assets/${course.image.filename}`}
-                />
+                {course.image?.filename ? (
+                  <CardMedia
+                    component="img"
+                    alt={course.image?.name || course.name}
+                    image={`/assets/${course.image.filename}`}
+                  />
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No course image available.
+                  </Typography>
+                )}
               </Grid>
 
               <Grid container md={9} xs={12} >

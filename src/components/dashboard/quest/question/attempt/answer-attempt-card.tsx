@@ -36,7 +36,8 @@ interface AnswerAttemptCardProps {
   onAnswerChange: (attemptId: number, answerId: number, isChecked: boolean) => void;
   userQuestAttemptId: string;
   submitted: boolean;
-  onAnswerSubmit: () => void;
+  onHintUsed: (questionId: number) => void;
+  onAnswerSubmit: (attemptId: string) => void;
   onAnswerSave: () => void;
 }
 
@@ -65,7 +66,7 @@ const parseKaTeX = (text: string): React.ReactNode[] => {
   });
 };
 
-export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, submitted, onAnswerSubmit, onAnswerSave }: AnswerAttemptCardProps): React.JSX.Element {
+export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, submitted, onHintUsed, onAnswerSubmit, onAnswerSave }: AnswerAttemptCardProps): React.JSX.Element {
   const { checkSession, eduquestUser } = useUser();
   const [page, setPage] = React.useState(1);
   const [showExplanation, setShowExplanation] = React.useState<Record<number, boolean>>({});
@@ -101,6 +102,10 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
     setPage(newPage);
   };
 
+  const markHintUsed = (questionId: number): void => {
+    onHintUsed(questionId);
+  };
+
   const refreshUser = async (): Promise<void> => {
     if (checkSession) {
       await checkSession();
@@ -127,6 +132,7 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
     const updatedUserAnswerAttempts: UserAnswerAttemptUpdateForm[] = data.map(attempt => ({
       id: attempt.id,
       is_selected: attempt.is_selected,
+      hint_used: attempt.hint_used,
     }));
 
     if (eduquestUser) {
@@ -172,7 +178,8 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
     // 2. Prepare the data to update is_selected and score_achieved
     const updatedUserAnswerAttempts: UserAnswerAttemptUpdateForm[] = data.map(attempt => ({
       id: attempt.id,
-      is_selected: attempt.is_selected
+      is_selected: attempt.is_selected,
+      hint_used: attempt.hint_used
     }));
 
     logger.debug('Updated UserAnswerAttempts:', updatedUserAnswerAttempts);
@@ -199,7 +206,7 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
         await refreshUser();
 
         // 7. Redirect to Quest page after submission
-        onAnswerSubmit();
+        onAnswerSubmit(userQuestAttemptId);
       } catch (error) {
         setStatus({ type: 'error', message: 'Submit Failed. Please try again.' });
         logger.error('Submit action failed:', error);
@@ -254,6 +261,22 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
                       <Typography variant="subtitle1">
                         {parseKaTeX(question.text)}
                       </Typography>
+                      {question.hint ? (
+                        <Button
+                          size="small"
+                          variant="text"
+                          onClick={() => { markHintUsed(question.id); }}
+                          disabled={answers.some(a => a.hint_used)}
+                          sx={{ mt: 1, px: 0 }}
+                        >
+                          {answers.some(a => a.hint_used) ? 'Hint Used (-5 points)' : 'Show Hint (-5 points)'}
+                        </Button>
+                      ) : null}
+                      {question.hint && answers.some(a => a.hint_used) ? (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                          {parseKaTeX(question.hint)}
+                        </Typography>
+                      ) : null}
                     </Grid>
                     {answers.map((attempt) => {
                       return (

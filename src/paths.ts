@@ -31,6 +31,7 @@ export const paths = {
       student: '/dashboard/insights/student',
       course: '/dashboard/insights/course',
     },
+    attendance: '/dashboard/quests/attendance',
     feedback: '/dashboard/feedback'
   },
   errors: {

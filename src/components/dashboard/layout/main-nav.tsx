@@ -6,6 +6,9 @@ import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import {List as ListIcon} from '@phosphor-icons/react/dist/ssr/List';
+import { Moon as MoonIcon } from '@phosphor-icons/react/dist/ssr/Moon';
+import { Sun as SunIcon } from '@phosphor-icons/react/dist/ssr/Sun';
+import { useColorScheme } from '@mui/material/styles';
 import {UserAvatar, type UserAvatarProps} from '@/components/auth/user-avatar';
 import {usePopover} from '@/hooks/use-popover';
 import {useUser} from '@/hooks/use-user';
@@ -24,6 +27,7 @@ export function MainNav(): React.JSX.Element {
     name: '?',
   });
   const { eduquestUser, avatar } = useUser();
+  const { mode, setMode } = useColorScheme();
 
 
   function formatName(name: string | undefined): string {
@@ -109,6 +113,15 @@ export function MainNav(): React.JSX.Element {
 
           </Stack>
           <Stack sx={{ alignItems: 'center' }} direction="row" spacing={2}>
+            <IconButton
+              aria-label="Toggle dark mode"
+              onClick={() => {
+                setMode(mode === 'dark' ? 'light' : 'dark');
+              }}
+              sx={{ color: 'var(--mui-palette-text-primary)' }}
+            >
+              {mode === 'dark' ? <SunIcon size={22} /> : <MoonIcon size={22} />}
+            </IconButton>
             {eduquestUser ?
               <LinearProgressForLevel
                 sx={{ width: '200px' }}

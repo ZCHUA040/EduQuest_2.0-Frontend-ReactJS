@@ -103,27 +103,29 @@ export default function Page(): React.JSX.Element {
 
       {showForm ? <QuestNewForm onFormSubmitSuccess={fetchQuests} courseGroupId={null}/> : null} {/* Conditional rendering */}
 
-      <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
-        <FunnelIcon height={20} width={20} />
-        <FormControl size="small">
-          <Select
-            value={selectedCourseId || ''}
-            onChange={handleCourseChange}
-            displayEmpty
-            sx={{ minWidth: 200 }}
-            size="small"
-          >
-            <MenuItem value="">
-              <em>All Courses</em>
-            </MenuItem>
-            {courseIds.map(courseId => (
-              <MenuItem key={courseId} value={courseId}>
-                {courseId}
+      {eduquestUser?.is_staff ? (
+        <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
+          <FunnelIcon height={20} width={20} />
+          <FormControl size="small">
+            <Select
+              value={selectedCourseId || ''}
+              onChange={handleCourseChange}
+              displayEmpty
+              sx={{ minWidth: 200 }}
+              size="small"
+            >
+              <MenuItem value="">
+                <em>All Courses</em>
               </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Stack>
+              {courseIds.map(courseId => (
+                <MenuItem key={courseId} value={courseId}>
+                  {courseId}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Stack>
+      ) : null}
 
       {loading ? (
         <SkeletonQuestCard />

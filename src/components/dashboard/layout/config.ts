@@ -92,6 +92,11 @@ export const navItems = [
         key: 'course',
         title: 'Courses',
         href: paths.dashboard.insights.course
+      },
+      {
+        key: 'attendance',
+        title: 'Attendance',
+        href: paths.dashboard.attendance
       }
     ]
   },

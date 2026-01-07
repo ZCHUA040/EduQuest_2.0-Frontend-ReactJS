@@ -1,6 +1,6 @@
 services:
   frontend:
-    image: xeroxisxs/eduquest-frontend-reactjs:latest
+    image: zchua040/eduquest-frontend-reactjs:latest
     ports:
       - "80:80"
     environment:

@@ -17,7 +17,11 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.JSX.Eleme
 
   return (
     <EmotionCache options={{ key: 'mui' }}>
-      <CssVarsProvider theme={theme}>
+      <CssVarsProvider
+        theme={theme}
+        defaultMode="light"
+        modeStorageKey="eduquest-color-scheme"
+      >
         <CssBaseline />
         {children}
       </CssVarsProvider>

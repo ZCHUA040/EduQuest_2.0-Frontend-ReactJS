@@ -5,14 +5,17 @@ import Typography from '@mui/material/Typography';
 import { CaretLeft as CaretLeftIcon } from "@phosphor-icons/react/dist/ssr/CaretLeft";
 import { Pen as PenIcon } from "@phosphor-icons/react/dist/ssr/Pen";
 import { GameController as GameControllerIcon } from "@phosphor-icons/react/dist/ssr/GameController";
+import { Sparkle as SparkleIcon } from "@phosphor-icons/react/dist/ssr/Sparkle";
 import type { Quest } from '@/types/quest';
 import type { UserQuestAttempt } from '@/types/user-quest-attempt';
 import { logger } from '@/lib/default-logger'
 import Card from "@mui/material/Card";
 import CardHeader from "@mui/material/CardHeader";
 import CardContent from "@mui/material/CardContent";
+import Rating from "@mui/material/Rating";
 import Grid from "@mui/material/Unstable_Grid2";
 import CardActions from "@mui/material/CardActions";
+import Collapse from "@mui/material/Collapse";
 import { default as RouterLink } from "next/link";
 import Alert from "@mui/material/Alert";
 import Stack from "@mui/material/Stack";
@@ -41,6 +44,8 @@ import {type UserAnswerAttempt} from "@/types/user-answer-attempt";
 import {AnswerAttemptCard} from "@/components/dashboard/quest/question/attempt/answer-attempt-card";
 import Box from "@mui/material/Box";
 import {SkeletonAnswerAttemptCard} from "@/components/dashboard/skeleton/skeleton-answer-attempt-card";
+import {getStudentFeedbackByAttempt} from "@/api/services/student-feedback";
+import type {StudentFeedback} from "@/types/student-feedback";
 
 
 export default function Page({ params }: { params: { questId: string } }) : React.JSX.Element {
@@ -62,6 +67,12 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
   const [loadingQuestAttemptTable, setLoadingQuestAttemptTable] = React.useState(true);
   const [loadingUserAnswerAttempts, setLoadingUserAnswerAttempts] = React.useState(false);
   const [openDialog, setOpenDialog] = useState(false);
+  const [feedbackAttemptId, setFeedbackAttemptId] = React.useState<string | null>(null);
+  const [feedbackData, setFeedbackData] = React.useState<StudentFeedback | null>(null);
+  const [feedbackStatus, setFeedbackStatus] = React.useState<'idle' | 'loading' | 'ready' | 'timeout' | 'error'>('idle');
+  const feedbackSectionRef = React.useRef<HTMLDivElement | null>(null);
+  const [showSubtopicDetails, setShowSubtopicDetails] = React.useState<Record<number, boolean>>({});
+  const [showStudyTips, setShowStudyTips] = React.useState(false);
 
   const handleViewAnswerAttempts = async ({ attemptId, submitted }: { attemptId: string; submitted: boolean }): Promise<void> => {
     try {
@@ -79,15 +90,32 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
     }
   }
 
-  const handleAnswerSubmit = async (): Promise<void> => {
+  const handleAnswerSubmit = async (attemptId: string): Promise<void> => {
+    setFeedbackAttemptId(attemptId);
+    setFeedbackData(null);
+    setFeedbackStatus('loading');
     // Refresh the quest attempts table
     await fetchMyQuestAttempts();
     toggleAnswerAttemptMode()
   }
 
+  const _handleViewFeedback = (attemptId: string): void => {
+    setFeedbackAttemptId(attemptId);
+    setFeedbackData(null);
+    setFeedbackStatus('loading');
+    feedbackSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const toggleAnswerAttemptMode = (): void => {
     setShowAnswerAttemptsMode(!showAnswerAttemptsMode);
   }
+
+  const toggleSubtopicDetails = (index: number): void => {
+    setShowSubtopicDetails(prevState => ({
+      ...prevState,
+      [index]: !prevState[index]
+    }));
+  };
 
   const toggleEditQuestForm = (): void => {
     setShowEditQuestForm(!showEditQuestForm);
@@ -159,6 +187,17 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
     );
   };
 
+  const onHintUsed = (questionId: number): void => {
+    setUserAnswerAttempts(prevData =>
+      prevData.map(attempt => {
+        if (attempt.question.id === questionId) {
+          return { ...attempt, hint_used: true };
+        }
+        return attempt;
+      })
+    );
+  };
+
   const handleNewAttempt = async (): Promise<void> => {
     if (eduquestUser) {
       try {
@@ -214,6 +253,79 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
     });
   }, []);
 
+  const latestSubmittedAttempt = React.useMemo(() => {
+    return userQuestAttempts?.find((attempt) => attempt.submitted) || null;
+  }, [userQuestAttempts]);
+
+  React.useEffect(() => {
+    if (!latestSubmittedAttempt) {
+      setFeedbackAttemptId(null);
+      setFeedbackData(null);
+      setFeedbackStatus('idle');
+      return;
+    }
+    if (feedbackAttemptId) {
+      return;
+    }
+    setFeedbackAttemptId(latestSubmittedAttempt.id.toString());
+    setFeedbackData(null);
+    setFeedbackStatus('loading');
+  }, [feedbackAttemptId, latestSubmittedAttempt]);
+
+  const renderBloomRating = (rating: number, level: string): React.JSX.Element => {
+    const safeRating = Number.isFinite(rating) ? Math.min(Math.max(rating, 1), 6) : 1;
+    return (
+      <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1 }}>
+        <Rating value={safeRating} max={6} readOnly />
+        <Typography variant="body2" color="text.secondary">
+          {level || 'Unspecified'}
+        </Typography>
+      </Stack>
+    );
+  };
+
+  React.useEffect(() => {
+    if (!feedbackAttemptId || feedbackStatus !== 'loading') {
+      return;
+    }
+    const maxAttempts = 10;
+    const intervalMs = 3000;
+    let attempts = 0;
+    let cancelled = false;
+
+    const poll = async (): Promise<void> => {
+      if (cancelled) {
+        return;
+      }
+      attempts += 1;
+      try {
+        const feedback = await getStudentFeedbackByAttempt(feedbackAttemptId);
+        if (feedback) {
+          setFeedbackData(feedback);
+          setFeedbackStatus('ready');
+          return;
+        }
+        if (attempts >= maxAttempts) {
+          setFeedbackStatus('timeout');
+        }
+      } catch (error: unknown) {
+        logger.error('Failed to fetch feedback', error);
+        setFeedbackStatus('error');
+      }
+    };
+
+    const intervalId = setInterval(() => {
+      void poll();
+    }, intervalMs);
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [feedbackAttemptId, feedbackStatus]);
+
 
   return (
     <Stack spacing={3}>
@@ -241,6 +353,7 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
               userQuestAttemptId={userAnswerAttemptIdAndStatus.attemptId}
               submitted={userAnswerAttemptIdAndStatus.submitted}
               onAnswerChange={onAnswerChange}
+              onHintUsed={onHintUsed}
               onAnswerSubmit={handleAnswerSubmit}
               onAnswerSave={fetchMyQuestAttempts}
             />
@@ -522,6 +635,130 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
           <Typography variant="body1">You have not attempted this quest yet.</Typography>
         )
       )}
+      <Box ref={feedbackSectionRef}>
+        <Card sx={{ mt: 3 }}>
+          <CardHeader
+            title={
+              <Stack direction="row" spacing={1} alignItems="center">
+                <SparkleIcon size={18} />
+                <Typography variant="h6">AI Tutor Feedback</Typography>
+              </Stack>
+            }
+            subheader={
+              feedbackAttemptId
+                ? `Attempt #${feedbackAttemptId} · Powered by GPT-4.0   `
+                : 'Powered by GPT'
+            }
+          />
+          <CardContent>
+            {feedbackStatus === 'loading' ? (
+              <Typography variant="body2" color="text.secondary">
+                Generating personalised feedback. This can take a moment.
+              </Typography>
+            ) : null}
+            {feedbackStatus === 'timeout' ? (
+              <Typography variant="body2" color="text.secondary">
+                Feedback is still generating. Please check back shortly.
+              </Typography>
+            ) : null}
+            {feedbackStatus === 'idle' ? (
+              <Typography variant="body2" color="text.secondary">
+                Submit an attempt to receive personalised feedback.
+              </Typography>
+            ) : null}
+            {feedbackStatus === 'error' ? (
+              <Typography variant="body2" color="error">
+                Feedback could not be loaded. Please try again later.
+              </Typography>
+            ) : null}
+            {feedbackStatus === 'ready' && feedbackData ? (
+              <Stack spacing={3} sx={{ mt: 1 }}>
+                <Box>
+                  <Typography variant="subtitle1">Quest Summary</Typography>
+                  {feedbackData.quest_summary ? (
+                    <>
+                      {renderBloomRating(
+                        feedbackData.quest_summary.overall_bloom_rating,
+                        feedbackData.quest_summary.overall_bloom_level
+                      )}
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        {feedbackData.quest_summary.summary || 'No summary available yet.'}
+                      </Typography>
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No quest summary available yet.
+                    </Typography>
+                  )}
+                </Box>
+                <Box>
+                  <Typography variant="subtitle1">Subtopic Feedback</Typography>
+                  {feedbackData.subtopic_feedback && feedbackData.subtopic_feedback.length > 0 ? (
+                    <Stack spacing={2} sx={{ mt: 1 }}>
+                      {feedbackData.subtopic_feedback.map((item, index) => (
+                        <Box key={`subtopic-${String(index)}`}>
+                          <Typography variant="body2" fontWeight={600}>
+                            {item.subtopic}
+                          </Typography>
+                          {renderBloomRating(item.bloom_rating, item.bloom_level)}
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={() => { toggleSubtopicDetails(index); }}
+                            sx={{ mt: 1, px: 0 }}
+                          >
+                            {showSubtopicDetails[index] ? 'Hide explanation' : 'Show explanation'}
+                          </Button>
+                          <Collapse in={Boolean(showSubtopicDetails[index])}>
+                            {item.evidence ? (
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                               Key Pointer: {item.evidence}
+                              </Typography>
+                            ) : null}
+                            {item.improvement_focus ? (
+                              <Typography variant="body2" color="text.secondary">
+                                Key Focus: {item.improvement_focus}
+                              </Typography>
+                            ) : null}
+                          </Collapse>
+                        </Box>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No subtopic feedback available yet.</Typography>
+                  )}
+                </Box>
+                <Box>
+                  <Typography variant="subtitle1">Study Tips</Typography>
+                  {feedbackData.study_tips && feedbackData.study_tips.length > 0 ? (
+                    <>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => { setShowStudyTips(prevState => !prevState); }}
+                        sx={{ mt: 1, px: 0 }}
+                      >
+                        {showStudyTips ? 'Hide study tips' : 'Show study tips'}
+                      </Button>
+                      <Collapse in={showStudyTips}>
+                        <Stack component="ul" sx={{ pl: 3, mt: 1, mb: 0 }}>
+                          {feedbackData.study_tips.map((tip, index) => (
+                            <Typography key={`study-tip-${String(index)}`} component="li" variant="body2">
+                              {tip}
+                            </Typography>
+                          ))}
+                        </Stack>
+                      </Collapse>
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No study tips available yet.</Typography>
+                  )}
+                </Box>
+              </Stack>
+            ) : null}
+          </CardContent>
+        </Card>
+      </Box>
       </Box>
       }
 

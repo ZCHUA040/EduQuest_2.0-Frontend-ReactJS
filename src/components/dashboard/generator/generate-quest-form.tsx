@@ -32,7 +32,7 @@ import RouterLink from 'next/link';
 import FormLabel from "@mui/material/FormLabel";
 import {getImages} from "@/api/services/image";
 import {type CourseGroup} from "@/types/course-group";
-import {getPrivateCourseGroups} from "@/api/services/course-group";
+import {getNonPrivateCourseGroups} from "@/api/services/course-group";
 import {getMyDocuments} from "@/api/services/document";
 import {createQuest} from "@/api/services/quest";
 import {createQuestionsAndAnswers} from "@/api/services/question";
@@ -57,6 +57,7 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
   const [courseGroups, setCourseGroups] = React.useState<CourseGroup[]>();
   const [documents, setDocuments] = React.useState<Document[]>();
   const [images, setImages] = React.useState<Image[]>();
+  const [selectedCourseGroupId, setSelectedCourseGroupId] = React.useState<string>('');
 
   const [selectedDocument, setSelectedDocument] = React.useState<Document | null>(null);
   const [submitStatus, setSubmitStatus] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -74,10 +75,10 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
     }
   }
 
-  const fetchPrivateCourseGroups = async (): Promise<void> => {
+  const fetchCourseGroups = async (): Promise<void> => {
     if (eduquestUser) {
       try {
-        const response = await getPrivateCourseGroups()
+        const response = await getNonPrivateCourseGroups()
         setCourseGroups(response);
         logger.debug('Course groups from private course', response);
       } catch (error: unknown) {
@@ -102,6 +103,10 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
     }
   };
 
+  const handleCourseGroupChange = (event: SelectChangeEvent): void => {
+    setSelectedCourseGroupId(event.target.value);
+  };
+
   const fetchMyDocuments = async (): Promise<void> => {
     if (eduquestUser) {
       try {
@@ -122,8 +127,9 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
     setShowProgress(true); // Show progress bar
 
     if (
-      images &&
-      courseGroups &&
+      images?.length &&
+      courseGroups?.length &&
+      selectedCourseGroupId &&
       eduquestUser &&
       questTypeRef.current &&
       questNameRef.current &&
@@ -139,9 +145,9 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
         max_attempts: Number(questMaxAttemptsRef.current?.value),
         expiration_date: null,
         tutorial_date: null,
-        course_group_id: courseGroups?.[0].id,
+        course_group_id: Number(selectedCourseGroupId),
         organiser_id: eduquestUser?.id,
-        image_id: images?.[0].id
+        image_id: images?.[0]?.id
       };
 
     const filename = selectedDocument?.file || documents?.[0].file;
@@ -242,15 +248,16 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
       onFormSubmitSuccess();
     }
     catch (error: unknown) {
-
-      setSubmitStatus({type: 'error', message: 'Questions Create Failed. Please try again.'});
+      const errorMessage = 'Questions Create Failed. Please try again.';
+      logger.error('Questions Create Failed', error);
+      setSubmitStatus({type: 'error', message: errorMessage});
     }
   }
 
   React.useEffect(() => {
     const fetchData = async (): Promise<void> => {
       await fetchImages();
-      await fetchPrivateCourseGroups();
+      await fetchCourseGroups();
       await fetchMyDocuments();
     };
 
@@ -258,6 +265,12 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
       logger.error('Failed to fetch data', error);
     });
   }, []);
+
+  React.useEffect(() => {
+    if (courseGroups?.length && !selectedCourseGroupId) {
+      setSelectedCourseGroupId(String(courseGroups[0]?.id));
+    }
+  }, [courseGroups, selectedCourseGroupId]);
 
 
   return (
@@ -305,6 +318,23 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
                   <MenuItem value="Private">
                     <Chip variant="outlined" label="Private" color="secondary" size="small"/>
                   </MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid md={4} xs={12}>
+              <FormControl fullWidth required>
+                <FormLabel htmlFor="course group">Course Group</FormLabel>
+                <Select
+                  value={selectedCourseGroupId}
+                  label="Course Group"
+                  onChange={handleCourseGroupChange}
+                  size="small"
+                >
+                  {courseGroups?.map((courseGroup) => (
+                    <MenuItem key={courseGroup.id} value={String(courseGroup.id)}>
+                      {courseGroup.name}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>

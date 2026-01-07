@@ -9,11 +9,13 @@ export interface UserAnswerAttempt {
   question: Question
   answer: Answer
   is_selected: boolean
+  hint_used?: boolean
   score_achieved: number
 }
 
 export interface UserAnswerAttemptUpdateForm {
   id: number
   is_selected?: boolean
+  hint_used?: boolean
   score_achieved?: number
 }

@@ -7,6 +7,9 @@ export interface Question {
   number: number;
   text: string;
   max_score: number;
+  hint?: string | null;
+  question_type?: string;
+  structured_data?: Record<string, unknown>;
   answers: Answer[];
 }
 
@@ -15,6 +18,9 @@ export interface QuestionMultipleNewForm {
   text: string;
   number: number;
   max_score: number;
+  hint?: string | null;
+  question_type?: string;
+  structured_data?: Record<string, unknown>;
   answers: AnswerNewForm[];
 }
 
@@ -25,5 +31,8 @@ export interface GeneratedQuestions {
 export interface GeneratedQuestion {
   number: number;
   text: string;
+  hint?: string | null;
+  question_type?: string;
+  structured_data?: Record<string, unknown>;
   answers: AnswerNewForm[];
 }
