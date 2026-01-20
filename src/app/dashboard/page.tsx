@@ -102,6 +102,8 @@ export default function Page(): React.JSX.Element {
     }
   }
 
+
+
   const handleOnClick = (aUserCourseProgression: UserCourseProgression ) => {
     setUserCourseProgression(aUserCourseProgression);
   }

@@ -9,8 +9,8 @@ while read -r line; do
     fi
 
     # split
-    configName="$(cut -d'=' -f1 <<<"$line")"
-    configValue="$(cut -d'=' -f2 <<<"$line")"
+    configName="$(cut -d'=' -f1 <<<"$line" | tr -d '\r')"
+    configValue="$(cut -d'=' -f2 <<<"$line" | tr -d '\r')"
     # get system env
     envValue=$(env | grep "^$configName=" | grep -oe '[^=]*$')
 
