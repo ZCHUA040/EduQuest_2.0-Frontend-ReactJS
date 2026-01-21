@@ -19,16 +19,21 @@ import { FloppyDisk as FloppyDiskIcon } from "@phosphor-icons/react/dist/ssr/Flo
 import { PaperPlaneTilt as PaperPlaneTiltIcon } from "@phosphor-icons/react/dist/ssr/PaperPlaneTilt";
 import { Eye as EyeIcon } from "@phosphor-icons/react/dist/ssr/Eye";
 import { EyeClosed as EyeClosedIcon } from "@phosphor-icons/react/dist/ssr/EyeClosed";
-import { Divider, Alert, Stack } from "@mui/material";
+import { Divider, Alert, Stack, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Select } from "@mui/material";
 import type { UserAnswerAttempt, UserAnswerAttemptUpdateForm } from "@/types/user-answer-attempt";
 import { type UserQuestAttemptUpdateForm } from "@/types/user-quest-attempt";
 import { logger } from "@/lib/default-logger";
 import { updateMultipleUserAnswerAttempts } from "@/api/services/user-answer-attempt";
 import { updateUserQuestAttempt } from "@/api/services/user-quest-attempt";
+import { claimUserQuestAttemptBonus } from "@/api/services/user-quest-attempt";
 import Points from "../../../../../../public/assets/point.svg";
 import { useUser } from '@/hooks/use-user';
 import { InlineMath } from 'react-katex';
 import 'katex/dist/katex.min.css';
+import { getQuestBonusGame } from "@/api/services/quest";
+import type { BonusGame } from "@/types/bonus-game";
+import { CaretUp as CaretUpIcon } from "@phosphor-icons/react/dist/ssr/CaretUp";
+import { CaretDown as CaretDownIcon } from "@phosphor-icons/react/dist/ssr/CaretDown";
 
 
 interface AnswerAttemptCardProps {
@@ -39,6 +44,8 @@ interface AnswerAttemptCardProps {
   onHintUsed: (questionId: number) => void;
   onAnswerSubmit: (attemptId: string) => void;
   onAnswerSave: () => void;
+  isPrivateQuest: boolean;
+  questId: string;
 }
 
 interface GroupedQuestion {
@@ -66,12 +73,20 @@ const parseKaTeX = (text: string): React.ReactNode[] => {
   });
 };
 
-export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, submitted, onHintUsed, onAnswerSubmit, onAnswerSave }: AnswerAttemptCardProps): React.JSX.Element {
+export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, submitted, onHintUsed, onAnswerSubmit, onAnswerSave, isPrivateQuest, questId }: AnswerAttemptCardProps): React.JSX.Element {
   const { checkSession, eduquestUser } = useUser();
   const [page, setPage] = React.useState(1);
   const [showExplanation, setShowExplanation] = React.useState<Record<number, boolean>>({});
   const rowsPerPage = 1; // Adjust as needed
   const [status, setStatus] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [bonusOpen, setBonusOpen] = React.useState(false);
+  const [bonusGame, setBonusGame] = React.useState<BonusGame | null>(null);
+  const [bonusLoading, setBonusLoading] = React.useState(false);
+  const [bonusStatus, setBonusStatus] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [bonusAwarded, setBonusAwarded] = React.useState(false);
+  const [matchingSelections, setMatchingSelections] = React.useState<Record<number, string>>({});
+  const [matchingOptions, setMatchingOptions] = React.useState<string[]>([]);
+  const [orderingItems, setOrderingItems] = React.useState<string[]>([]);
 
   // 1. Group UserAnswerAttempt by Question using useMemo
   const groupedQuestions: GroupedQuestion[] = React.useMemo(() => {
@@ -226,9 +241,120 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
     onAnswerChange(attemptId, answerId, isChecked);
   };
 
+  const shuffleArray = (items: string[]): string[] => {
+    const copy = [...items];
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  };
+
+  const handleOpenBonus = async (): Promise<void> => {
+    setBonusOpen(true);
+    setBonusStatus(null);
+    if (bonusGame || bonusLoading) {
+      return;
+    }
+    try {
+      setBonusLoading(true);
+      const response = await getQuestBonusGame(questId);
+      setBonusGame(response);
+    } catch (error: unknown) {
+      logger.error('Failed to fetch bonus game', error);
+      setBonusStatus({ type: 'error', message: 'Failed to load bonus game. Please try again.' });
+    } finally {
+      setBonusLoading(false);
+    }
+  };
+
+  const handleCloseBonus = (): void => {
+    setBonusOpen(false);
+  };
+
+  React.useEffect(() => {
+    if (!bonusGame) {
+      return;
+    }
+    setBonusStatus(null);
+    if (bonusGame.game_type === 'matching') {
+      setMatchingSelections({});
+      setMatchingOptions(shuffleArray(bonusGame.pairs.map(pair => pair.right)));
+    } else {
+      setOrderingItems(shuffleArray(bonusGame.items));
+    }
+  }, [bonusGame]);
+
+  const handleMatchChange = (index: number, value: string): void => {
+    setMatchingSelections(prevState => ({
+      ...prevState,
+      [index]: value
+    }));
+  };
+
+  const moveOrderingItem = (index: number, direction: 'up' | 'down'): void => {
+    setOrderingItems(prevItems => {
+      const nextItems = [...prevItems];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= nextItems.length) {
+        return prevItems;
+      }
+      [nextItems[index], nextItems[targetIndex]] = [nextItems[targetIndex], nextItems[index]];
+      return nextItems;
+    });
+  };
+
+  const handleBonusSubmit = async (): Promise<void> => {
+    if (!bonusGame) {
+      return;
+    }
+
+    if (bonusGame.game_type === 'matching') {
+      const allSelected = bonusGame.pairs.every((_pair, index) => Boolean(matchingSelections[index]));
+      if (!allSelected) {
+        setBonusStatus({ type: 'error', message: 'Please complete all matches.' });
+        return;
+      }
+      const correct = bonusGame.pairs.every((pair, index) => matchingSelections[index] === pair.right);
+      if (!correct) {
+        setBonusStatus({ type: 'error', message: 'Not quite right. Try again.' });
+        return;
+      }
+    } else {
+      const correctOrder = bonusGame.answer_order.map(index => bonusGame.items[index]);
+      const correct = orderingItems.every((item, index) => item === correctOrder[index]);
+      if (!correct) {
+        setBonusStatus({ type: 'error', message: 'Sequence is incorrect. Try again.' });
+        return;
+      }
+    }
+
+    try {
+      const response = await claimUserQuestAttemptBonus(userQuestAttemptId);
+      setBonusAwarded(response.bonus_awarded);
+      setBonusStatus({ type: 'success', message: `Bonus +${String(response.bonus_points)} points awarded!` });
+      await refreshUser();
+    } catch (error: unknown) {
+      logger.error('Failed to award bonus points', error);
+      setBonusStatus({ type: 'error', message: 'Failed to award bonus points. Please try again.' });
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit}>
       <FormGroup>
+        {isPrivateQuest ? (
+          <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}>
+            <Button
+              size="small"
+              variant="text"
+              onClick={handleOpenBonus}
+              disabled={bonusAwarded || submitted}
+            >
+              {bonusAwarded ? 'Bonus Claimed' : 'Play Bonus Game (+5)'}
+            </Button>
+          </Stack>
+        ) : null}
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
           <Pagination count={pageCount} page={page} onChange={handleChangePage} color="primary" />
         </Box>
@@ -286,6 +412,7 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
                               <Checkbox
                                 checked={attempt.is_selected}
                                 onChange={(e) => { handleCheckboxChange(attempt.id, attempt.answer.id, e.target.checked); }}
+                                disabled={submitted}
                               />
                             }
                             label={parseKaTeX(attempt.answer.text)}
@@ -333,6 +460,69 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
             {status.message}
           </Alert> : null}
       </FormGroup>
+      <Dialog open={bonusOpen} onClose={handleCloseBonus} fullWidth maxWidth="sm">
+        <DialogTitle>Bonus Game (+5 Points)</DialogTitle>
+        <DialogContent>
+          {bonusLoading ? (
+            <Typography variant="body2" color="text.secondary">Loading bonus game...</Typography>
+          ) : bonusGame ? (
+            <Stack spacing={2}>
+              <Typography variant="subtitle1">{bonusGame.prompt}</Typography>
+              {bonusGame.hint ? (
+                <Typography variant="body2" color="text.secondary">Hint: {bonusGame.hint}</Typography>
+              ) : null}
+              {bonusGame.game_type === 'matching' ? (
+                <Stack spacing={2}>
+                  {bonusGame.pairs.map((pair, index) => (
+                    <Stack key={`pair-${String(index)}`} direction="row" spacing={2} alignItems="center">
+                      <Typography variant="body2" sx={{ minWidth: '40%' }}>{pair.left}</Typography>
+                      <Select
+                        size="small"
+                        value={matchingSelections[index] || ''}
+                        onChange={(event) => { handleMatchChange(index, event.target.value); }}
+                        displayEmpty
+                        fullWidth
+                      >
+                        <MenuItem value="">
+                          <em>Select match</em>
+                        </MenuItem>
+                        {matchingOptions.map((option) => (
+                          <MenuItem key={`option-${option}`} value={option}>{option}</MenuItem>
+                        ))}
+                      </Select>
+                    </Stack>
+                  ))}
+                </Stack>
+              ) : (
+                <Stack spacing={1}>
+                  {orderingItems.map((item, index) => (
+                    <Stack key={`order-${item}`} direction="row" spacing={1} alignItems="center">
+                      <Typography variant="body2" sx={{ flexGrow: 1 }}>{item}</Typography>
+                      <Button size="small" onClick={() => { moveOrderingItem(index, 'up'); }} disabled={index === 0}>
+                        <CaretUpIcon />
+                      </Button>
+                      <Button size="small" onClick={() => { moveOrderingItem(index, 'down'); }} disabled={index === orderingItems.length - 1}>
+                        <CaretDownIcon />
+                      </Button>
+                    </Stack>
+                  ))}
+                </Stack>
+              )}
+              {bonusStatus ? (
+                <Alert severity={bonusStatus.type}>{bonusStatus.message}</Alert>
+              ) : null}
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary">No bonus game available.</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseBonus}>Close</Button>
+          <Button variant="contained" onClick={handleBonusSubmit} disabled={!bonusGame || bonusLoading}>
+            Submit Bonus
+          </Button>
+        </DialogActions>
+      </Dialog>
     </form>
   );
 }

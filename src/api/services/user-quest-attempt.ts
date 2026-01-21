@@ -4,6 +4,7 @@ import type {
   // UserQuestAttemptMultipleUpdateForm,
   UserQuestAttemptNewForm, UserQuestAttemptUpdateForm
 } from "@/types/user-quest-attempt";
+import type { UserQuestAttemptBonusResponse } from "@/types/user-quest-attempt";
 
 export const getUserQuestAttempts = async (): Promise<UserQuestAttempt[]> => {
   const response = await apiService.get<UserQuestAttempt[]>('/api/user-quest-attempts/');
@@ -41,4 +42,9 @@ export const updateUserQuestAttemptByQuestAsSubmitted = async (questId: string):
 
 export const deleteUserQuestAttempt = async (id: string): Promise<void> => {
   await apiService.delete(`/api/user-quest-attempts/${id}/`);
+}
+
+export const claimUserQuestAttemptBonus = async (id: string): Promise<UserQuestAttemptBonusResponse> => {
+  const response = await apiService.post<UserQuestAttemptBonusResponse>(`/api/user-quest-attempts/${id}/bonus/`);
+  return response.data;
 }

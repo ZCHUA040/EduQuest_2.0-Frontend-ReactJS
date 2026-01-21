@@ -44,7 +44,7 @@ import {type UserAnswerAttempt} from "@/types/user-answer-attempt";
 import {AnswerAttemptCard} from "@/components/dashboard/quest/question/attempt/answer-attempt-card";
 import Box from "@mui/material/Box";
 import {SkeletonAnswerAttemptCard} from "@/components/dashboard/skeleton/skeleton-answer-attempt-card";
-import {getStudentFeedbackByAttempt} from "@/api/services/student-feedback";
+import {generateFeedbackFromMicroservice, getStudentFeedbackByAttempt, saveStudentFeedback} from "@/api/services/student-feedback";
 import type {StudentFeedback} from "@/types/student-feedback";
 
 
@@ -285,46 +285,47 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
   };
 
   React.useEffect(() => {
-    if (!feedbackAttemptId || feedbackStatus !== 'loading') {
+    if (!feedbackAttemptId || feedbackStatus !== 'loading' || !eduquestUser) {
       return;
     }
-    const maxAttempts = 10;
-    const intervalMs = 3000;
-    let attempts = 0;
     let cancelled = false;
 
-    const poll = async (): Promise<void> => {
+    const fetchOrGenerate = async (): Promise<void> => {
       if (cancelled) {
         return;
       }
-      attempts += 1;
       try {
         const feedback = await getStudentFeedbackByAttempt(feedbackAttemptId);
+        if (cancelled) {
+          return;
+        }
         if (feedback) {
           setFeedbackData(feedback);
           setFeedbackStatus('ready');
           return;
         }
-        if (attempts >= maxAttempts) {
-          setFeedbackStatus('timeout');
+        const generated = await generateFeedbackFromMicroservice(feedbackAttemptId, eduquestUser.id);
+        if (cancelled) {
+          return;
         }
+        const saved = await saveStudentFeedback(feedbackAttemptId, generated);
+        if (cancelled) {
+          return;
+        }
+        setFeedbackData(saved);
+        setFeedbackStatus('ready');
       } catch (error: unknown) {
-        logger.error('Failed to fetch feedback', error);
+        logger.error('Failed to generate feedback', error);
         setFeedbackStatus('error');
       }
     };
 
-    const intervalId = setInterval(() => {
-      void poll();
-    }, intervalMs);
-
-    void poll();
+    void fetchOrGenerate();
 
     return () => {
       cancelled = true;
-      clearInterval(intervalId);
     };
-  }, [feedbackAttemptId, feedbackStatus]);
+  }, [feedbackAttemptId, feedbackStatus, eduquestUser]);
 
 
   return (
@@ -356,6 +357,8 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
               onHintUsed={onHintUsed}
               onAnswerSubmit={handleAnswerSubmit}
               onAnswerSave={fetchMyQuestAttempts}
+              isPrivateQuest={quest?.type === 'Private'}
+              questId={params.questId}
             />
           ) : null
         )

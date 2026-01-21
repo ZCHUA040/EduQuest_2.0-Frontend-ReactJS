@@ -1,6 +1,8 @@
 import apiService from "@/api/api-service";
+import microService from "@/api/micro-service";
 import type { Quest, QuestNewForm, QuestUpdateForm } from "@/types/quest";
 import type {Question} from "@/types/question";
+import type { BonusGame } from "@/types/bonus-game";
 
 
 export const getQuests = async (): Promise<Quest[]> => {
@@ -49,6 +51,22 @@ export const importQuest = async (questImportFormData: FormData): Promise<Questi
 
 export const updateQuest = async (id: string, questUpdateForm: QuestUpdateForm): Promise<Quest> => {
   const response = await apiService.patch<Quest>(`/api/quests/${id}/`, questUpdateForm);
+  return response.data;
+}
+
+export const getQuestBonusGame = async (id: string): Promise<BonusGame> => {
+  const quest = await getQuest(id);
+  const sourceFile = quest.source_document?.file;
+  if (!sourceFile) {
+    throw new Error('No source document found for this quest.');
+  }
+  const documentId = sourceFile.split('/').pop() || '';
+  if (!documentId) {
+    throw new Error('Invalid source document filename.');
+  }
+  const response = await microService.post<BonusGame>(`/generate_bonus_game`, {
+    document_id: documentId,
+  });
   return response.data;
 }
 

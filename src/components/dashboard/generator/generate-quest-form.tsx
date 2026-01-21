@@ -64,6 +64,7 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
   const [progress, setProgress] = React.useState(0);
   const [progressStatus, setProgressStatus] = React.useState<string>(''); // New state for progress status message
   const [showProgress, setShowProgress] = React.useState(false); // State to control progress bar visibility
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const fetchImages = async (): Promise<void> => {
     try {
@@ -121,6 +122,10 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
+    if (isSubmitting) {
+      return;
+    }
+    setIsSubmitting(true);
     setSubmitStatus(null); // Reset submit status
     setProgress(10); // Initial progress
     setProgressStatus('Creating a new Quest'); // Initial progress status
@@ -147,7 +152,8 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
         tutorial_date: null,
         course_group_id: Number(selectedCourseGroupId),
         organiser_id: eduquestUser?.id,
-        image_id: images?.[0]?.id
+        image_id: images?.[0]?.id,
+        source_document_id: selectedDocument?.id ?? documents?.[0]?.id ?? null
       };
 
     const filename = selectedDocument?.file || documents?.[0].file;
@@ -194,6 +200,7 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
       setProgressStatus('Quest creation failed'); // Progress status
     }
     setShowProgress(false); // Hide progress bar after submission
+    setIsSubmitting(false);
   };
 
 
@@ -471,7 +478,7 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
         <CardActions sx={{justifyContent: 'flex-end'}}>
           { documents && documents.length > 0 ?
             <Button startIcon={<MagicWandIcon fontSize="var(--icon-fontSize-md)"/>} type="submit"
-                    variant="contained">Generate</Button>
+                    variant="contained" disabled={isSubmitting || showProgress}>Generate</Button>
           :
             <Button endIcon={<CaretRightIcon/>} component={RouterLink} href={paths.dashboard.generator.upload} variant="contained">
               Upload Document

@@ -109,6 +109,7 @@ function useChartOptions(labels: string[], data: number[], badgeDetails: Record<
         style: {
           fontFamily: theme.typography.fontFamily,
           fontSize: '12px',
+          colors: [theme.palette.text.primary],
         },
       },
       axisBorder: { show: false },
@@ -119,6 +120,7 @@ function useChartOptions(labels: string[], data: number[], badgeDetails: Record<
       formatter: (val: number) => Math.round(val).toString(),
       style: {
         fontFamily: theme.typography.fontFamily,
+        colors: [theme.palette.text.primary],
       }
     },
     fill: {

@@ -8,6 +8,7 @@ import MenuItem from '@mui/material/MenuItem';
 import MenuList from '@mui/material/MenuList';
 import Popover from '@mui/material/Popover';
 import Typography from '@mui/material/Typography';
+import { useTheme } from '@mui/material/styles';
 // import { GearSix as GearSixIcon } from '@phosphor-icons/react/dist/ssr/GearSix';
 import { SignOut as SignOutIcon } from '@phosphor-icons/react/dist/ssr/SignOut';
 import { User as UserIcon } from '@phosphor-icons/react/dist/ssr/User';
@@ -27,6 +28,7 @@ export function UserPopover({ anchorEl, onClose, open }: UserPopoverProps): Reac
   const { checkSession } = useUser();
   const { eduquestUser } = useUser();
   const router = useRouter();
+  const theme = useTheme();
 
   const handleSignOut = React.useCallback(async (): Promise<void> => {
     try {
@@ -54,7 +56,16 @@ export function UserPopover({ anchorEl, onClose, open }: UserPopoverProps): Reac
       anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
       onClose={onClose}
       open={open}
-      slotProps={{ paper: { sx: { width: '240px' } } }}
+      slotProps={{
+        paper: {
+          sx: {
+            width: '240px',
+            backgroundColor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+            border: `1px solid ${theme.palette.divider}`,
+          },
+        },
+      }}
     >
       <Box sx={{ p: '16px 20px ' }}>
         <Typography variant="subtitle1">
@@ -69,7 +80,16 @@ export function UserPopover({ anchorEl, onClose, open }: UserPopoverProps): Reac
         </Typography>
       </Box>
       <Divider />
-      <MenuList disablePadding sx={{ p: '8px', '& .MuiMenuItem-root': { borderRadius: 1 } }}>
+      <MenuList
+        disablePadding
+        sx={{
+          p: '8px',
+          '& .MuiMenuItem-root': {
+            borderRadius: 1,
+            color: theme.palette.text.primary,
+          },
+        }}
+      >
         {/*<MenuItem component={RouterLink} href={paths.dashboard.settings} onClick={onClose}>*/}
         {/*  <ListItemIcon>*/}
         {/*    <GearSixIcon fontSize="var(--icon-fontSize-md)" />*/}

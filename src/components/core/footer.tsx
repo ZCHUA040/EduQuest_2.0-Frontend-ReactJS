@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -10,19 +12,19 @@ export function Footer(): React.JSX.Element {
   return (
     <Box
       component="footer"
-      sx={{
+      sx={(theme) => ({
         pt: 3,
         pb: 4,
         px: 2,
         mt: 40,
-        backgroundColor: '#f8f9fa',
-        borderTop: '1px solid #e7e7e7',
+        backgroundColor: theme.palette.background.paper,
+        borderTop: `1px solid ${theme.palette.divider}`,
         textAlign: 'center',
         flexShrink: 0,
-      }}
+      })}
     >
       <Typography variant="body2" color="textSecondary">
-        © 2024 EduQuest. All rights reserved.
+        © 2026 EduQuest. All rights reserved.
       </Typography>
       <Box
         sx={{
@@ -36,7 +38,7 @@ export function Footer(): React.JSX.Element {
         <Stack direction="row" spacing={1} alignItems="center">
           <GithubIcon />
           <Link
-            href="https://github.com/xeroxis-xs"
+            href="https://github.com/ZCHUA040"
             target="_blank"
             rel="noopener noreferrer"
             underline="hover"
@@ -50,7 +52,7 @@ export function Footer(): React.JSX.Element {
         <Stack direction="row" spacing={1} alignItems="center">
           <LinkedInIcon/>
           <Link
-            href="https://www.linkedin.com/in/xisheng-/"
+            href="https://www.linkedin.com/in/zhi-li-chua/"
             target="_blank"
             rel="noopener noreferrer"
             underline="hover"

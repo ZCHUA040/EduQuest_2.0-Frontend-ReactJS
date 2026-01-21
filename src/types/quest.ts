@@ -1,12 +1,14 @@
 import type {Image} from "@/types/image";
 import type {CourseGroup, CourseGroupSummary} from "@/types/course-group";
 import type {EduquestUserSummary, EduquestUser} from "@/types/eduquest-user";
+import type {Document} from "@/types/document";
 
 
 export interface Quest {
   course_group: CourseGroup;
   organiser: EduquestUserSummary;
   image: Image;
+  source_document?: Document | null;
   id: number;
   name: string;
   description: string;
@@ -29,6 +31,7 @@ export interface QuestNewForm {
   course_group_id: CourseGroup['id'];
   organiser_id: EduquestUser['id'];
   image_id: Image['id'];
+  source_document_id?: Document['id'] | null;
   name: string;
   description: string;
   type: string;
@@ -41,6 +44,7 @@ export interface QuestNewForm {
 export interface QuestUpdateForm {
   course_group_id?: CourseGroup['id'];
   image_id?: Image['id'];
+  source_document_id?: Document['id'] | null;
   name?: string;
   description?: string;
   type?: string;

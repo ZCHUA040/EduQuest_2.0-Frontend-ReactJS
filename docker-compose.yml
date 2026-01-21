@@ -1,7 +1,7 @@
 services:
   frontend:
     build: .
-    image: zchua040/eduquest-frontend-reactjs:19012026
+    image: zchua040/eduquest-frontend-reactjs:latest
 
     ports:
       - "80:80"

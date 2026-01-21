@@ -13,6 +13,8 @@ import PerfectionistBadge from "../../../../public/assets/perfectionist_badge.sv
 import ExpertBadge from "../../../../public/assets/expert_badge.svg";
 import SpeedsterBadge from "../../../../public/assets/speedster_badge.svg";
 import CompletionistBadge from "../../../../public/assets/completionist_badge.svg";
+import FullAttendanceBadge from "../../../../public/assets/full_attendance_badge.svg";
+import HalfAttendanceBadge from "../../../../public/assets/half_attendance_badge.svg";
 import { User as UserIcon } from "@phosphor-icons/react/dist/ssr/User";
 import CardContent from "@mui/material/CardContent";
 import RouterLink from "next/link";
@@ -37,6 +39,10 @@ export function RecentAchievements({ recentBadges = [], sx }: RecentAchievements
         return <SpeedsterBadge width={30} height={30} />;
       case 'Completionist':
         return <CompletionistBadge width={30} height={30} />;
+      case 'Full Attendance':
+        return <FullAttendanceBadge width={30} height={30} />;
+      case 'Half Attendance':
+        return <HalfAttendanceBadge width={30} height={30} />;
       default:
         return null;
     }

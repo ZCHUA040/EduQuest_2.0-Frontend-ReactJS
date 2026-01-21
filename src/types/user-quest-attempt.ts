@@ -9,6 +9,8 @@ export interface UserQuestAttempt {
   last_attempted_date: string | null// ISO 8601 datetime string
   time_taken: number
   total_score_achieved: number
+  bonus_points?: number
+  bonus_awarded?: boolean
   submitted: boolean
 }
 
@@ -18,7 +20,14 @@ export interface UserQuestAttemptSummary {
   id: number
   time_taken: number
   total_score_achieved: number
+  bonus_points?: number
+  bonus_awarded?: boolean
   submitted: boolean
+}
+
+export interface UserQuestAttemptBonusResponse {
+  bonus_awarded: boolean
+  bonus_points: number
 }
 
 export interface UserQuestAttemptNewForm {
