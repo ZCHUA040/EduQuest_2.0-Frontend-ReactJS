@@ -130,7 +130,7 @@ function useChartOptions(labels: string[], studentScores: { name: string; highes
         const notScored = student.not_scored;
         const attempted = student.attempted;
 
-        let tooltipContent =
+        const tooltipContent =
           `<div style="padding: 5px 10px; font-size: 12px;">
             <strong>${student.name}</strong><br/>
             Highest Score: ${highest.toString()}<br/>

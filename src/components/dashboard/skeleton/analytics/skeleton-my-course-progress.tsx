@@ -1,3 +1,4 @@
+/* eslint-disable react/no-array-index-key -- skeleton rows are static placeholders */
 import * as React from 'react';
 import Card from '@mui/material/Card';
 import Skeleton from '@mui/material/Skeleton';

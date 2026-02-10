@@ -134,14 +134,12 @@ class AuthClient {
         if (response.status === 200) {
           const blob = await response.blob();
           return URL.createObjectURL(blob);
-        } else {
-          logger.error(`Failed to fetch blob from graph API: ${response.statusText}`);
-          return ''; // Return a fallback avatar URL or an empty string
         }
-      } else {
-        logger.error('Failed to fetch access token for user photo.');
+        logger.error(`Failed to fetch blob from graph API: ${response.statusText}`);
         return ''; // Return a fallback avatar URL or an empty string
       }
+      logger.error('Failed to fetch access token for user photo.');
+      return ''; // Return a fallback avatar URL or an empty string
     } catch (error) {
       logger.error('Failed to fetch user photo:', error);
       return ''; // Return a fallback avatar URL or an empty string

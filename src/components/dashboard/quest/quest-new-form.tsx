@@ -59,7 +59,7 @@ export function QuestNewForm({onFormSubmitSuccess, courseGroupId}: CourseFormPro
   const [isCourseGroupsLoading, setIsCourseGroupsLoading] = React.useState<boolean>(true);
 
 
-  const fetchImages = async (): Promise<void> => {
+  const fetchImages = React.useCallback(async (): Promise<void> => {
     try {
       const response = await getImages();
       setImages(response);
@@ -68,9 +68,9 @@ export function QuestNewForm({onFormSubmitSuccess, courseGroupId}: CourseFormPro
     } finally {
       setIsImagesLoading(false);
     }
-  }
+  }, []);
 
-  const fetchCourseGroups = async (): Promise<void> => {
+  const fetchCourseGroups = React.useCallback(async (): Promise<void> => {
     try {
       if (courseGroupId) {
         // If courseGroupId is provided, filter the data to only show the selected group
@@ -86,7 +86,7 @@ export function QuestNewForm({onFormSubmitSuccess, courseGroupId}: CourseFormPro
     } finally {
       setIsCourseGroupsLoading(false);
     }
-  }
+  }, [courseGroupId]);
 
   // Handle Image Change
   const handleImageChange = (event: SelectChangeEvent<number>): void => {
@@ -154,7 +154,7 @@ export function QuestNewForm({onFormSubmitSuccess, courseGroupId}: CourseFormPro
     fetchData().catch((error: unknown) => {
       logger.error('Failed to fetch data', error);
     });
-  }, []);
+  }, [fetchCourseGroups, fetchImages]);
 
   // Pre-select the first image
   React.useEffect(() => {

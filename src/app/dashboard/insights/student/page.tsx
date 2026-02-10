@@ -27,7 +27,7 @@ export default function Page(): React.JSX.Element {
   const [selectedUser, setSelectedUser] = React.useState<EduquestUser | null>(null);
 
 
-  const handleCourseSelection = (aUserCourseProgression: UserCourseProgression) => {
+  const handleCourseSelection = (aUserCourseProgression: UserCourseProgression): void => {
     setUserCourseProgression(aUserCourseProgression);
   }
 

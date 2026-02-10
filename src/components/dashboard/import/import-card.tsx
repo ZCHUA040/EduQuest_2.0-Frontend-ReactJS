@@ -1,4 +1,5 @@
 import * as React from 'react';
+import axios from 'axios';
 import Grid from '@mui/material/Unstable_Grid2'; // Grid version 2
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -7,6 +8,7 @@ import CardHeader from "@mui/material/CardHeader";
 import { CardMedia, TextField, Skeleton } from "@mui/material";
 import Divider from "@mui/material/Divider";
 import FormControl from "@mui/material/FormControl";
+import FormHelperText from "@mui/material/FormHelperText";
 import Select, {type SelectChangeEvent} from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import Button from "@mui/material/Button";
@@ -73,9 +75,27 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
   const [selectedImage, setSelectedImage] = React.useState<Image | null>(null);
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [submitStatus, setSubmitStatus] = React.useState< { type: 'success' | 'error'; message: unknown } | null>(null);
+  const [formErrors, setFormErrors] = React.useState<Record<string, string>>({});
+
+  const getErrorMessage = (error: unknown): string => {
+    if (axios.isAxiosError(error)) {
+      const statusCode = error.response?.status;
+      if (statusCode === 400) {
+        return 'Quest import failed. Please upload a valid .xlsx file.';
+      }
+      if (statusCode === 401 || statusCode === 403) {
+        return 'You are not authorized to import this quest.';
+      }
+      if (statusCode && statusCode >= 500) {
+        return 'Quest import failed due to a server issue. Please try again later.';
+      }
+      return 'Quest import failed. Please try again.';
+    }
+    return 'Quest import failed. Please try again.';
+  };
 
 
-  const fetchImages = async (): Promise<void> => {
+  const fetchImages = React.useCallback(async (): Promise<void> => {
     try {
       const response = await getImages();
       setImages(response);
@@ -84,9 +104,9 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
     } finally {
       setIsImagesLoading(false);
     }
-  }
+  }, []);
 
-  const fetchCourseGroups = async (): Promise<void> => {
+  const fetchCourseGroups = React.useCallback(async (): Promise<void> => {
     try {
       if (courseGroupId) {
         // If courseGroupId is provided, filter the data to only show the selected group
@@ -102,7 +122,7 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
     } finally {
       setIsCourseGroupsLoading(false);
     }
-  }
+  }, [courseGroupId]);
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>): void => {
     event.preventDefault();
@@ -124,6 +144,9 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
     const file = event.target.files ? event.target.files[0] : null;
     setSelectedFile(file);
+    if (formErrors.file) {
+      setFormErrors(prev => ({ ...prev, file: '' }));
+    }
     // logger.debug('Selected File:', file);
   };
 
@@ -132,6 +155,9 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
     const imageId = Number(event.target.value);
     const image = images?.find(i => i.id === imageId) || null;
     setSelectedImage(image);
+    if (formErrors.thumbnail) {
+      setFormErrors(prev => ({ ...prev, thumbnail: '' }));
+    }
   };
 
   // Handle Course Change
@@ -139,58 +165,104 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
     const cId = Number(event.target.value);
     const course = courseGroups?.find(c => c.id === cId) || null;
     setSelectedCourseGroup(course);
+    if (formErrors.courseGroup) {
+      setFormErrors(prev => ({ ...prev, courseGroup: '' }));
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
+    setSubmitStatus(null);
+    const missingFields: string[] = [];
+    const questType = questTypeRef.current?.value?.trim() || '';
+    const questName = questNameRef.current?.value?.trim() || '';
+    const questDescription = questDescriptionRef.current?.value?.trim() || '';
+    const questTutorialDate = questTutorialDateRef.current?.value?.trim() || '';
+    const nextErrors: Record<string, string> = {};
+
+    if (!questType) {
+      missingFields.push('Quest Type');
+      nextErrors.questType = 'Quest Type is required';
+    }
+    if (!questName) {
+      missingFields.push('Quest Name');
+      nextErrors.questName = 'Quest Name is required';
+    }
+    if (!questDescription) {
+      missingFields.push('Quest Description');
+      nextErrors.questDescription = 'Quest Description is required';
+    }
+    if (!questTutorialDate) {
+      missingFields.push('Quest Tutorial Date');
+      nextErrors.questTutorialDate = 'Quest Tutorial Date is required';
+    }
+    if (!selectedCourseGroup) {
+      missingFields.push('Course Group');
+      nextErrors.courseGroup = 'Course Group is required';
+    }
+    if (!selectedImage) {
+      missingFields.push('Thumbnail');
+      nextErrors.thumbnail = 'Thumbnail is required';
+    }
+    if (!selectedFile) {
+      missingFields.push('External Report File');
+      nextErrors.file = 'External Report File is required';
+    }
+    if (!eduquestUser) {
+      missingFields.push('User Session');
+      nextErrors.user = 'User Session is required';
+    }
+
+    if (missingFields.length > 0) {
+      setSubmitStatus({
+        type: 'error',
+        message: `Please complete required fields.`
+      });
+      setFormErrors(nextErrors);
+      return;
+    }
+    setFormErrors({});
+
+    // Type narrowing guard for strict null checks
+    if (!selectedCourseGroup || !selectedImage || !selectedFile || !eduquestUser) {
+      setSubmitStatus({ type: 'error', message: 'Missing required fields.' });
+      return;
+    }
+
     setIsProcessing(true);
     // Create FormData
     const formData = new FormData();
 
-    if (
-      selectedCourseGroup &&
-      eduquestUser &&
-      selectedImage &&
-      questTypeRef.current &&
-      questNameRef.current &&
-      questDescriptionRef.current &&
-      questTutorialDateRef.current
-    ) {
-      // Append other data as needed
-      formData.append('type', questTypeRef.current?.value || '');
-      formData.append('name', questNameRef.current?.value || '');
-      formData.append('description', questDescriptionRef.current?.value || '');
-      formData.append('tutorial_date', new Date(questTutorialDateRef.current.value).toISOString());
-      formData.append('status', 'Active');
-      formData.append('max_attempts', '1');
-      formData.append('course_group_id', selectedCourseGroup.id.toString() );
-      formData.append('organiser_id', eduquestUser.id.toString() );
-      formData.append('image_id', selectedImage.id.toString() );
-    } else {
-      logger.error('Missing required fields');
-      setSubmitStatus({ type: 'error', message: 'Missing required fields' });
+    const parsedTutorialDate = new Date(questTutorialDate);
+    if (Number.isNaN(parsedTutorialDate.getTime())) {
+      setSubmitStatus({ type: 'error', message: 'Quest Tutorial Date is invalid.' });
       setIsProcessing(false);
-      return
+      return;
     }
 
-    if (selectedFile) {
-      try {
-        formData.append('file', selectedFile);
+    // Append required data
+    formData.append('type', questType);
+    formData.append('name', questName);
+    formData.append('description', questDescription);
+    formData.append('tutorial_date', parsedTutorialDate.toISOString());
+    formData.append('status', 'Active');
+    formData.append('max_attempts', '1');
+    formData.append('course_group_id', selectedCourseGroup.id.toString());
+    formData.append('organiser_id', eduquestUser.id.toString());
+    formData.append('image_id', selectedImage.id.toString());
 
-        // logger.debug('Form Data:', Array.from(formData.entries()));
-        const response = await importQuest(formData);
-        logger.debug('Upload Success, Question data: ', response);
-        setSubmitStatus({type: 'success', message: 'Quest Import Successful'});
-        onImportSuccess(response);
-      } catch (error: unknown) {
-        logger.error('Failed to import quest', error);
-        setSubmitStatus({type: 'error', message: 'Failed to import quest'});
-      } finally {
-        setIsProcessing(false);
-      }
-    } else {
-      logger.error('No file selected');
-      setSubmitStatus({type: 'error', message: 'No file selected'});
+    try {
+      formData.append('file', selectedFile);
+
+      // logger.debug('Form Data:', Array.from(formData.entries()));
+      const response = await importQuest(formData);
+      logger.debug('Upload Success, Question data: ', response);
+      setSubmitStatus({type: 'success', message: 'Quest Import Successful'});
+      onImportSuccess(response);
+    } catch (error: unknown) {
+      logger.error('Failed to import quest', error);
+      setSubmitStatus({type: 'error', message: getErrorMessage(error)});
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -204,7 +276,7 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
     fetchData().catch((error: unknown) => {
       logger.error('Failed to fetch data', error);
     });
-  }, []);
+  }, [fetchImages, fetchCourseGroups]);
 
   // Pre-select the first image
   React.useEffect(() => {
@@ -240,7 +312,7 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
         <Grid container spacing={3}>
 
           <Grid md={6} xs={12}>
-            <FormControl fullWidth required>
+            <FormControl fullWidth required error={Boolean(formErrors.questName)}>
               <FormLabel htmlFor="quest name">Quest Name</FormLabel>
               <TextField
                 inputRef={questNameRef}
@@ -248,11 +320,19 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
                 placeholder="The name of the quest. E.g. 'Week 1 Quiz' or 'Lecture 1 MCQ'"
                 variant='outlined'
                 size='small'
+                required
+                error={Boolean(formErrors.questName)}
+                helperText={formErrors.questName || ''}
+                onChange={() => {
+                  if (formErrors.questName) {
+                    setFormErrors(prev => ({ ...prev, questName: '' }));
+                  }
+                }}
               />
             </FormControl>
           </Grid>
           <Grid md={6} xs={12}>
-            <FormControl fullWidth required>
+            <FormControl fullWidth required error={Boolean(formErrors.questType)}>
               <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
                 <FormLabel htmlFor="quest type">Quest Type</FormLabel>
                 <Tooltip title={
@@ -266,17 +346,18 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
                   <InfoIcon fontSize="var(--icon-fontSize-sm)" style={{ marginBottom: '8px', cursor: 'pointer', color: 'var(--mui-palette-neutral-500)' }} />
                 </Tooltip>
               </Stack>
-              <Select defaultValue="Wooclap" label="Quest Type" inputRef={questTypeRef} name="type" size="small">
+              <Select defaultValue="Wooclap" label="Quest Type" inputRef={questTypeRef} name="type" size="small" required>
                 <MenuItem value="Eduquest MCQ"><Chip variant="outlined" label="Eduquest MCQ" color="primary" size="small"/></MenuItem>
                 <MenuItem value="Private"><Chip variant="outlined" label="Private" color="secondary" size="small"/></MenuItem>
                 <MenuItem value="Kahoot!"><Chip variant="outlined" label="Kahoot!" color="violet" size="small"/></MenuItem>
                 <MenuItem value="Wooclap"><Chip variant="outlined" label="Wooclap" color="neon" size="small"/></MenuItem>
               </Select>
+              {formErrors.questType ? <FormHelperText>{formErrors.questType}</FormHelperText> : null}
             </FormControl>
           </Grid>
 
           <Grid md={6} xs={12}>
-            <FormControl fullWidth required>
+            <FormControl fullWidth required error={Boolean(formErrors.questTutorialDate)}>
               <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
                 <FormLabel htmlFor="quest tutorial date">Quest Tutorial Date</FormLabel>
                 <Tooltip title="The date and time of the tutorial session conducted" placement="right">
@@ -288,12 +369,20 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
                 type="datetime-local"
                 variant='outlined'
                 size='small'
+                required
+                error={Boolean(formErrors.questTutorialDate)}
+                helperText={formErrors.questTutorialDate || ''}
+                onChange={() => {
+                  if (formErrors.questTutorialDate) {
+                    setFormErrors(prev => ({ ...prev, questTutorialDate: '' }));
+                  }
+                }}
               />
             </FormControl>
           </Grid>
 
           <Grid md={6} xs={12}>
-            <FormControl fullWidth required>
+            <FormControl fullWidth required error={Boolean(formErrors.file)}>
               <FormLabel htmlFor="select file">External Report</FormLabel>
                 <Button
                   component="label"
@@ -304,14 +393,15 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
                   sx={{ height: '100%' }}
                 >
                   {selectedFile ? selectedFile.name : 'Select File or Drag and Drop'}
-                  <VisuallyHiddenInput type="file" onChange={handleFileChange} />
+                  <VisuallyHiddenInput type="file" onChange={handleFileChange} required />
                 </Button>
+              {formErrors.file ? <FormHelperText>{formErrors.file}</FormHelperText> : null}
             </FormControl>
           </Grid>
 
 
           <Grid xs={12}>
-            <FormControl fullWidth required>
+            <FormControl fullWidth required error={Boolean(formErrors.questDescription)}>
               <FormLabel htmlFor="quest description">Quest Description</FormLabel>
               <TextField
                 inputRef={questDescriptionRef}
@@ -320,6 +410,14 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
                 variant='outlined'
                 multiline
                 rows={3}
+                required
+                error={Boolean(formErrors.questDescription)}
+                helperText={formErrors.questDescription || ''}
+                onChange={() => {
+                  if (formErrors.questDescription) {
+                    setFormErrors(prev => ({ ...prev, questDescription: '' }));
+                  }
+                }}
               />
 
             </FormControl>
@@ -337,16 +435,17 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
           <Grid container spacing={3} >
             <Grid container md={6} xs={12} alignItems="flex-start">
               <Grid xs={12}>
-                <FormControl  required>
+                <FormControl  required error={Boolean(formErrors.thumbnail)}>
                   <FormLabel htmlFor="thumbnail id">Thumbnail ID</FormLabel>
                   <Select defaultValue={images[0]?.id} onChange={handleImageChange} inputRef={questImageIdRef}
-                          label="Thumbnail ID" variant="outlined" type="number" size="small">
+                          label="Thumbnail ID" variant="outlined" type="number" size="small" required>
                     {images.map((option) => (
                       <MenuItem key={option.id} value={option.id}>
                         {option.id} - {option.name}
                       </MenuItem>
-                    ))}
+                      ))}
                   </Select>
+                  {formErrors.thumbnail ? <FormHelperText>{formErrors.thumbnail}</FormHelperText> : null}
                 </FormControl>
               </Grid>
               <Grid md={6} xs={12}>
@@ -363,7 +462,7 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
               <Typography variant="overline" color="text.secondary">Thumbnail Preview</Typography>
               <CardMedia
                 component="img"
-                alt={selectedImage?.name}
+                alt={selectedImage?.name || 'Quest Thumbnail'}
                 image={`/assets/${selectedImage?.filename || images[0].filename}`}
                 sx={{ backgroundColor: theme.palette.background.level1, border: `1px solid ${theme.palette.neutral[200]}`, borderRadius: '8px' }}
               />
@@ -381,16 +480,17 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
               <Grid container spacing={3} >
                 <Grid container xs={12} alignItems="flex-start">
                   <Grid xs={12}>
-                    <FormControl required>
+                    <FormControl required error={Boolean(formErrors.courseGroup)}>
                       <FormLabel htmlFor="course id">Group ID</FormLabel>
                       <Select defaultValue={courseGroups[0]?.id} onChange={handleCourseChange}
-                              label="Course ID" variant="outlined" type="number" disabled={Boolean(courseGroupId)} size="small">
+                              label="Course ID" variant="outlined" type="number" disabled={Boolean(courseGroupId)} size="small" required>
                         {courseGroups.map((option) => (
                           <MenuItem key={option.id} value={option.id}>
                             {`${option.id.toString()} - [${option.name}] ${option.course.code} ${option.course.name}`}
                           </MenuItem>
                         ))}
                       </Select>
+                      {formErrors.courseGroup ? <FormHelperText>{formErrors.courseGroup}</FormHelperText> : null}
                     </FormControl>
                   </Grid>
                   <Grid md={3} xs={12}>
@@ -409,7 +509,7 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
                     <Typography variant="overline" color="text.secondary">Instructor</Typography>
                     <Stack direction="row" spacing={1} alignItems="center">
                       <UserIcon size={18}/>
-                      <Typography variant="body2">{selectedCourseGroup?.instructor.nickname}</Typography>
+                      <Typography variant="body2">{selectedCourseGroup?.instructor?.nickname || '-'}</Typography>
                     </Stack>
                   </Grid>
                 </Grid>
@@ -426,7 +526,9 @@ export function ImportCard({ onImportSuccess, courseGroupId }: ImportCardProps):
       {isProcessing ? <Loading text="Processing File..." /> : null}
 
     <Box sx={{display: "flex", justifyContent: "center", mt: 6}}>
-      <Button endIcon={<CaretRightIcon/>} type="submit" variant="contained">Next: Edit Question</Button>
+      <Button endIcon={<CaretRightIcon/>} type="submit" variant="contained" disabled={isProcessing || !selectedFile}>
+        Next: Edit Question
+      </Button>
     </Box>
 
     </form>

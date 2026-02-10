@@ -22,7 +22,7 @@ interface UserQuestAttemptTableProps {
   rows: UserQuestAttempt[];
   totalMaxScore?: number;
   questStatus?: string;
-  handleViewAnswerAttempts: (params: { attemptId: string; submitted: boolean }) => void;
+  handleViewAnswerAttempts: (params: { attemptId: string; submitted: boolean; bonusAwarded: boolean }) => void;
 }
 
 export function UserQuestAttemptTable({rows = [], totalMaxScore = 0, questStatus, handleViewAnswerAttempts }: UserQuestAttemptTableProps): React.JSX.Element {
@@ -124,13 +124,13 @@ export function UserQuestAttemptTable({rows = [], totalMaxScore = 0, questStatus
                   <TableCell>
                     {row.submitted ? (
                       <Button
-                        onClick={() => { handleViewAnswerAttempts({attemptId: row.id.toString(), submitted: row.submitted}); }}
+                        onClick={() => { handleViewAnswerAttempts({attemptId: row.id.toString(), submitted: row.submitted, bonusAwarded: Boolean(row.bonus_awarded)}); }}
                       >
                         View
                       </Button>
                     ) :
                       <Button
-                        onClick={() => { handleViewAnswerAttempts({attemptId: row.id.toString(), submitted: row.submitted}); }}
+                        onClick={() => { handleViewAnswerAttempts({attemptId: row.id.toString(), submitted: row.submitted, bonusAwarded: Boolean(row.bonus_awarded)}); }}
                         disabled={questStatus === 'Expired'}>
                         Continue
                       </Button>

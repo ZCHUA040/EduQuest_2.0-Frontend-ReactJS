@@ -11,7 +11,7 @@ export default function Page(): React.JSX.Element {
         </Stack>
       </Stack>
       <iframe
-        src="https://docs.google.com/forms/d/e/1FAIpQLSdgCny3HLRptSokCimNY5zvNwOU8wPiYS9fnKRfUOPk79npgQ/viewform?embedded=true"
+        src="https://docs.google.com/forms/d/e/1FAIpQLScMAsJrJ4RD_M73artYKLvSHacW7AimYUOxDOdY-OqhCBn6Bw/viewform?usp=sharing&ouid=101992332141641833333"
         width="640"
         height="1200"
         title="Feedback Form"

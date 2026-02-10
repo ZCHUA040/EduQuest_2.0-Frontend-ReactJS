@@ -24,6 +24,8 @@ import {type UserAnswerAttempt} from "@/types/user-answer-attempt";
 import {updateUserQuestAttemptByQuestAsSubmitted} from "@/api/services/user-quest-attempt";
 import {type Quest} from "@/types/quest";
 import {updateQuest} from "@/api/services/quest";
+import Alert from "@mui/material/Alert";
+import axios from "axios";
 
 
 interface ImportCardUserAttemptProps {
@@ -48,48 +50,68 @@ export function ImportCardUserAttempt( { aggregatedResults, newQuestId }:ImportC
   const rowsPerPage = 1; // Each page will show one card
   const router = useRouter();
   const [loadingState, setLoadingState] = React.useState<LoadingState>(LoadingState.Idle);
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
   const delay = (ms: number): Promise<void> => new Promise(resolve => {setTimeout(resolve, ms)});
 
   const handleChangePage = (_event: React.ChangeEvent<unknown>, newPage: number): void => {
     setPage(newPage);
   };
 
-  const refreshUser = async () : Promise<void> => {
-    try {
-      setLoadingState(LoadingState.IssuingPoints);
-      if (checkSession) {
-        await checkSession();
+  const getErrorMessage = (error: unknown): string => {
+    if (axios.isAxiosError(error)) {
+      const data: unknown = error.response?.data;
+      if (typeof data === 'string') {
+        return data;
       }
-    } catch (error: unknown) {
-      logger.error('Failed to refresh user:', error);
-    } finally {
-      setLoadingState(LoadingState.Redirecting);
+      if (data && typeof data === 'object') {
+        if (Array.isArray(data)) {
+          return data.length > 0 ? String(data[0]) : 'Request failed.';
+        }
+        const detail = (data as { detail?: unknown }).detail;
+        if (typeof detail === 'string') {
+          return detail;
+        }
+        const entries = Object.entries(data as Record<string, unknown>);
+        if (entries.length > 0) {
+          const [field, value] = entries[0];
+          const fieldMessage = Array.isArray(value) ? String(value[0]) : String(value);
+          return `${String(field)}: ${fieldMessage}`;
+        }
+      }
+      return error.message || 'Request failed.';
     }
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return 'Unexpected error occurred.';
+  };
 
+  const refreshUser = async () : Promise<void> => {
+    setLoadingState(LoadingState.IssuingPoints);
+    if (checkSession) {
+      await checkSession();
+    }
   };
   const setAttemptsAsSubmitted = async (questId: Quest['id']): Promise<void> => {
-    try {
-      setLoadingState(LoadingState.IssuingBadges);
-      await updateUserQuestAttemptByQuestAsSubmitted(questId.toString());
-      // logger.debug('All attempts set as submitted');
-    } catch (error: unknown) {
-      logger.error('Failed to set all attempts as submitted:', error);
-    }
+    setLoadingState(LoadingState.IssuingBadges);
+    await updateUserQuestAttemptByQuestAsSubmitted(questId.toString());
   }
 
   const setQuestToExpire = async (questId: number): Promise<void> => {
-    try {
-      setLoadingState(LoadingState.SettingQuestAsExpired);
-      const data = { status: 'Expired' };
-      await updateQuest(questId.toString(), data);
-      // logger.debug('Quest set as expired:');
-    } catch (error: unknown) {
-      logger.error('Failed to expire quest:', error);
-    }
+    setLoadingState(LoadingState.SettingQuestAsExpired);
+    const data = { status: 'Expired' };
+    await updateQuest(questId.toString(), data);
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
+    if (isSubmitting) {
+      return;
+    }
+    setSubmitError(null);
+    setIsSubmitting(true);
+    setLoadingState(LoadingState.CalculatingScores);
     try {
 
       // 2. Set all attempts for the quest as submitted
@@ -105,10 +127,15 @@ export function ImportCardUserAttempt( { aggregatedResults, newQuestId }:ImportC
       await refreshUser();
 
       // 5. Redirect to the quest page
+      setLoadingState(LoadingState.Redirecting);
       router.push(`/dashboard/quest/${newQuestId.toString()}`);
     }
     catch (error: unknown) {
       logger.error('Failed to save data', error);
+      setSubmitError(getErrorMessage(error));
+      setLoadingState(LoadingState.Idle);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -120,8 +147,8 @@ export function ImportCardUserAttempt( { aggregatedResults, newQuestId }:ImportC
       <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
         <Pagination count={pageCount} page={page} onChange={handleChangePage} color="primary" />
       </Box>
-      {currentResults.map((result, index) => (
-        <Card key={index}>
+      {currentResults.map((result) => (
+        <Card key={result.questionNumber}>
           <CardHeader title={`Question ${result.questionNumber.toString()}. ${result.questionText}`} />
           <Divider />
             <Table sx={{ minWidth: '800px' }}>
@@ -133,8 +160,8 @@ export function ImportCardUserAttempt( { aggregatedResults, newQuestId }:ImportC
                 </TableRow>
               </TableHead>
               <TableBody>
-                {result.answers.map((answer, idx) => (
-                  <TableRow hover key={idx}>
+                {result.answers.map((answer) => (
+                  <TableRow hover key={`${answer.answerText}-${String(answer.count)}-${String(answer.total)}`}>
                     <TableCell sx={{px:'24px'}}>
                       <Stack direction="row" spacing={1}>
                         <Typography variant="body2">{answer.answerText}</Typography>
@@ -164,9 +191,12 @@ export function ImportCardUserAttempt( { aggregatedResults, newQuestId }:ImportC
       {loadingState === LoadingState.SettingQuestAsExpired ? <Loading text='Setting Quest as Expired...' /> : null}
       {loadingState === LoadingState.IssuingPoints ? <Loading text='Issuing Points...' /> : null}
       {loadingState === LoadingState.Redirecting ? <Loading text='Completed! Redirecting...' /> : null}
+      {submitError ? <Alert severity="error" sx={{ mt: 2 }}>{submitError}</Alert> : null}
 
       <Box sx={{display: "flex", justifyContent: "center", mt: 6}}>
-        <Button startIcon={<CheckFatIcon/>} type="submit" variant="contained">Grade Attempts</Button>
+        <Button startIcon={<CheckFatIcon/>} type="submit" variant="contained" disabled={isSubmitting}>
+          {isSubmitting ? 'Processing...' : 'Grade Attempts'}
+        </Button>
       </Box>
 
     </form>

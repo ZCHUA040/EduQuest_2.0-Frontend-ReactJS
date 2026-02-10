@@ -1,3 +1,4 @@
+/* eslint-disable react/no-array-index-key -- skeleton rows are static placeholders */
 import * as React from 'react';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Unstable_Grid2'; // Grid version 2

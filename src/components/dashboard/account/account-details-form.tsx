@@ -64,7 +64,7 @@ export function AccountDetailsForm(): React.JSX.Element {
     }
   };
 
-  const setUserPhotoAvatar = async (): Promise<void> => {
+  const setUserPhotoAvatar = React.useCallback(async (): Promise<void> => {
     if (eduquestUser) {
       try {
         logger.debug("User Avatar: ", avatar);
@@ -89,7 +89,7 @@ export function AccountDetailsForm(): React.JSX.Element {
         logger.error('Error fetching user photo: ', error)
       }
     }
-  };
+  }, [avatar, eduquestUser]);
 
   React.useEffect(() => {
     const fetchData = async (): Promise<void> => {
@@ -98,7 +98,7 @@ export function AccountDetailsForm(): React.JSX.Element {
     fetchData().catch((error: unknown) => {
       logger.error('Failed to fetch data', error);
     });
-  }, [eduquestUser]);
+  }, [eduquestUser, setUserPhotoAvatar]);
 
   return (
     <form onSubmit={handleSubmit}>

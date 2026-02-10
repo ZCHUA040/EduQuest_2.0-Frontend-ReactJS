@@ -3,6 +3,7 @@
 "use client";
 
 import * as React from 'react';
+import axios from 'axios';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Unstable_Grid2'; // Grid version 2
 import Card from '@mui/material/Card';
@@ -15,17 +16,18 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import CardActions from "@mui/material/CardActions";
 import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
 import { FloppyDisk as FloppyDiskIcon } from "@phosphor-icons/react/dist/ssr/FloppyDisk";
 import { PaperPlaneTilt as PaperPlaneTiltIcon } from "@phosphor-icons/react/dist/ssr/PaperPlaneTilt";
 import { Eye as EyeIcon } from "@phosphor-icons/react/dist/ssr/Eye";
 import { EyeClosed as EyeClosedIcon } from "@phosphor-icons/react/dist/ssr/EyeClosed";
 import { Divider, Alert, Stack, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Select } from "@mui/material";
+import LinearProgress from '@mui/material/LinearProgress';
 import type { UserAnswerAttempt, UserAnswerAttemptUpdateForm } from "@/types/user-answer-attempt";
 import { type UserQuestAttemptUpdateForm } from "@/types/user-quest-attempt";
 import { logger } from "@/lib/default-logger";
 import { updateMultipleUserAnswerAttempts } from "@/api/services/user-answer-attempt";
-import { updateUserQuestAttempt } from "@/api/services/user-quest-attempt";
-import { claimUserQuestAttemptBonus } from "@/api/services/user-quest-attempt";
+import { updateUserQuestAttempt, claimUserQuestAttemptBonus } from "@/api/services/user-quest-attempt";
 import Points from "../../../../../../public/assets/point.svg";
 import { useUser } from '@/hooks/use-user';
 import { InlineMath } from 'react-katex';
@@ -41,6 +43,7 @@ interface AnswerAttemptCardProps {
   onAnswerChange: (attemptId: number, answerId: number, isChecked: boolean) => void;
   userQuestAttemptId: string;
   submitted: boolean;
+  bonusAwarded: boolean;
   onHintUsed: (questionId: number) => void;
   onAnswerSubmit: (attemptId: string) => void;
   onAnswerSave: () => void;
@@ -63,17 +66,18 @@ const parseKaTeX = (text: string): React.ReactNode[] => {
   // Replace double backslashes with a single backslash
   const sanitizedText = text.replace(/\\\\/g, '\\');
 
-  const parts = sanitizedText.split(/(?<temp1>\$[^$]*\$)/g); // Split by KaTeX expressions
+  const parts = sanitizedText.split(/(?<katex>\$[^$]*\$)/g); // Split by KaTeX expressions
   return parts.map((part, index) => {
     if (part.startsWith('$') && part.endsWith('$')) {
       const math = part.slice(1, -1); // Remove the $ delimiters
+      // eslint-disable-next-line react/no-array-index-key -- KaTeX tokens may repeat and lack stable ids
       return <InlineMath key={index} math={math} />;
     }
     return part;
   });
 };
 
-export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, submitted, onHintUsed, onAnswerSubmit, onAnswerSave, isPrivateQuest, questId }: AnswerAttemptCardProps): React.JSX.Element {
+export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, submitted, bonusAwarded: initialBonusAwarded, onHintUsed, onAnswerSubmit, onAnswerSave, isPrivateQuest, questId }: AnswerAttemptCardProps): React.JSX.Element {
   const { checkSession, eduquestUser } = useUser();
   const [page, setPage] = React.useState(1);
   const [showExplanation, setShowExplanation] = React.useState<Record<number, boolean>>({});
@@ -82,6 +86,7 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
   const [bonusOpen, setBonusOpen] = React.useState(false);
   const [bonusGame, setBonusGame] = React.useState<BonusGame | null>(null);
   const [bonusLoading, setBonusLoading] = React.useState(false);
+  const [bonusLoadingProgress, setBonusLoadingProgress] = React.useState(0);
   const [bonusStatus, setBonusStatus] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [bonusAwarded, setBonusAwarded] = React.useState(false);
   const [matchingSelections, setMatchingSelections] = React.useState<Record<number, string>>({});
@@ -258,8 +263,10 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
     }
     try {
       setBonusLoading(true);
+      setBonusLoadingProgress(10);
       const response = await getQuestBonusGame(questId);
       setBonusGame(response);
+      setBonusLoadingProgress(100);
     } catch (error: unknown) {
       logger.error('Failed to fetch bonus game', error);
       setBonusStatus({ type: 'error', message: 'Failed to load bonus game. Please try again.' });
@@ -270,7 +277,30 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
 
   const handleCloseBonus = (): void => {
     setBonusOpen(false);
+    setBonusLoadingProgress(0);
   };
+
+  React.useEffect(() => {
+    setBonusAwarded(Boolean(initialBonusAwarded));
+  }, [initialBonusAwarded, userQuestAttemptId]);
+
+  React.useEffect(() => {
+    if (!bonusLoading) {
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      setBonusLoadingProgress((prevProgress) => {
+        if (prevProgress >= 90) {
+          return prevProgress;
+        }
+        return Math.min(prevProgress + 8, 90);
+      });
+    }, 300);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [bonusLoading]);
 
   React.useEffect(() => {
     if (!bonusGame) {
@@ -334,9 +364,14 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
       setBonusAwarded(response.bonus_awarded);
       setBonusStatus({ type: 'success', message: `Bonus +${String(response.bonus_points)} points awarded!` });
       await refreshUser();
+      onAnswerSave();
+      handleCloseBonus();
     } catch (error: unknown) {
       logger.error('Failed to award bonus points', error);
-      setBonusStatus({ type: 'error', message: 'Failed to award bonus points. Please try again.' });
+      const apiMessage = axios.isAxiosError(error)
+        ? ((error.response?.data as { error?: string } | undefined)?.error || null)
+        : null;
+      setBonusStatus({ type: 'error', message: apiMessage || 'Failed to award bonus points. Please try again.' });
     }
   };
 
@@ -405,21 +440,37 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
                       ) : null}
                     </Grid>
                     {answers.map((attempt) => {
+                      const isCorrect = Boolean(attempt.answer.is_correct);
+                      const isSelected = Boolean(attempt.is_selected);
+                      const statusLabel = isCorrect
+                        ? 'Correct Answer'
+                        : isSelected
+                          ? 'Wrong Answer'
+                          : 'Not Correct';
                       return (
                         <Grid key={attempt.answer.id} md={6} xs={12}>
-                          <FormControlLabel
-                            control={
-                              <Checkbox
-                                checked={attempt.is_selected}
-                                onChange={(e) => { handleCheckboxChange(attempt.id, attempt.answer.id, e.target.checked); }}
-                                disabled={submitted}
-                              />
-                            }
-                            label={parseKaTeX(attempt.answer.text)}
-                          />
-                          {showExplanation[attempt.question.id] && attempt.answer.reason ? <Typography variant="body2" mt={1}>
-                              {parseKaTeX(attempt.answer.reason)}
-                            </Typography> : null}
+                          <Stack spacing={1}>
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  checked={attempt.is_selected}
+                                  onChange={(e) => { handleCheckboxChange(attempt.id, attempt.answer.id, e.target.checked); }}
+                                  disabled={submitted}
+                                />
+                              }
+                              label={parseKaTeX(attempt.answer.text)}
+                            />
+                            {submitted ? (
+                              <Stack direction="row" spacing={1} sx={{ mt: -0.5 }}>
+                                <Chip size="small" color={isCorrect ? "success" : isSelected ? "error" : "default"} label={statusLabel} />
+                              </Stack>
+                            ) : null}
+                            {showExplanation[attempt.question.id] && attempt.answer.reason ? (
+                              <Typography variant="body2" mt={0.5}>
+                                {parseKaTeX(attempt.answer.reason)}
+                              </Typography>
+                            ) : null}
+                          </Stack>
                         </Grid>
                       );
                     })}
@@ -464,7 +515,15 @@ export function AnswerAttemptCard({ data, userQuestAttemptId, onAnswerChange, su
         <DialogTitle>Bonus Game (+5 Points)</DialogTitle>
         <DialogContent>
           {bonusLoading ? (
-            <Typography variant="body2" color="text.secondary">Loading bonus game...</Typography>
+            <Stack spacing={1.5} sx={{ py: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                Generating bonus game...
+              </Typography>
+              <LinearProgress variant="determinate" value={bonusLoadingProgress} />
+              <Typography variant="caption" color="text.secondary">
+                This can take a few seconds.
+              </Typography>
+            </Stack>
           ) : bonusGame ? (
             <Stack spacing={2}>
               <Typography variant="subtitle1">{bonusGame.prompt}</Typography>

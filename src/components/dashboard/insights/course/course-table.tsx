@@ -86,9 +86,9 @@ export function CourseTable({ rows = [], onCourseGroupSelect }: CourseTableProps
   );
 }
 
-function CollapsibleRow({ row, onCourseGroupSelect }: CollapsibleRowProps) {
+function CollapsibleRow({ row, onCourseGroupSelect }: CollapsibleRowProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
-  const handleGroupClick = (group: CourseGroup) => {
+  const handleGroupClick = (group: CourseGroup): void => {
     onCourseGroupSelect(group);
   };
   return (

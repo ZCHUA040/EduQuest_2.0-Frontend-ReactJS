@@ -27,7 +27,7 @@ interface CourseExpiresDialogProps {
   handleDialogConfirm: (status: 'Active' | 'Expired') => void;
 }
 
-export function CourseExpiresDialog({ course, openDialog, handleDialogClose, handleDialogConfirm }: CourseExpiresDialogProps): React.JSX.Element {
+export function CourseExpiresDialog({ course, openDialog, handleDialogClose, handleDialogConfirm }: CourseExpiresDialogProps): React.JSX.Element | null {
 
 
   if (course) {
@@ -137,7 +137,7 @@ export function CourseExpiresDialog({ course, openDialog, handleDialogClose, han
       </Dialog>
     );
   }
-    return <></>;
+    return null;
 
 
 }

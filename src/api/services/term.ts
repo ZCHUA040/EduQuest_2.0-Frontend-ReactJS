@@ -1,5 +1,5 @@
 import apiService from "@/api/api-service";
-import type { Term } from "@/types/term";
+import type { Term, TermNewForm, TermUpdateForm } from "@/types/term";
 
 
 export const getTerms = async (): Promise<Term[]> => {
@@ -17,12 +17,12 @@ export const getTerm = async (id: string): Promise<Term> => {
   return response.data;
 }
 
-export const createTerm = async (term: Term): Promise<Term> => {
+export const createTerm = async (term: TermNewForm): Promise<Term> => {
   const response = await apiService.post<Term>('/api/terms/', term);
   return response.data;
 }
 
-export const updateTerm = async (id: string, term: Term): Promise<Term> => {
+export const updateTerm = async (id: string, term: TermUpdateForm): Promise<Term> => {
   const response = await apiService.patch<Term>(`/api/terms/${id}/`, term);
   return response.data;
 }

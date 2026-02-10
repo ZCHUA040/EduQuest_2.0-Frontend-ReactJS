@@ -41,6 +41,11 @@ export default function Page(): React.JSX.Element {
     }
   };
 
+  const handleCourseCreateSuccess = async (): Promise<void> => {
+    await fetchCourses();
+    setShowForm(false);
+  };
+
   React.useEffect(() => {
     fetchCourses().catch((error: unknown) => {
       // This catch is optional since errors are handled in the service
@@ -68,7 +73,7 @@ export default function Page(): React.JSX.Element {
             </Button>
           </Stack> : null}
       </Stack>
-      {showForm ? <CourseNewForm onFormSubmitSuccess={fetchCourses} /> : null}
+      {showForm ? <CourseNewForm onFormSubmitSuccess={handleCourseCreateSuccess} /> : null}
       {loading ? (
         <SkeletonCourseCard />
       ) : courses.length === 0 ? (

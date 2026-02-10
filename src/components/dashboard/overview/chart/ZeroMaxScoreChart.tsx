@@ -114,7 +114,7 @@ function useChartOptions(
         const student = studentParticipation[dataPointIndex];
         const attempted = student.attempted;
 
-        let tooltipContent = `<div style="padding: 5px 10px; font-size: 12px;">
+        const tooltipContent = `<div style="padding: 5px 10px; font-size: 12px;">
           <strong>${student.name}</strong><br/>
           ${attempted ? 'Participated in the quest.' : `<div style='color: #f04438;'><em>Did not participate in the quest.</em></div>`}
         </div>`;

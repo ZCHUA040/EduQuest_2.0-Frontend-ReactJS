@@ -22,17 +22,17 @@ export const navItems = [
   },
   {
     key: 'quest',
-    title: 'Quest',
+    title: 'Tutorial Quest',
     icon: 'sword',
     items: [
       {
         key: 'all-quests',
-        title: 'All Quests',
+        title: 'All Tutorial Quests',
         href: paths.dashboard.quest.all
       },
       {
         key: 'my-quests',
-        title: 'My Quests',
+        title: 'My Tutorial Quests',
         href: paths.dashboard.quest.my
       }
     ]
@@ -92,11 +92,6 @@ export const navItems = [
         key: 'course',
         title: 'Courses',
         href: paths.dashboard.insights.course
-      },
-      {
-        key: 'attendance',
-        title: 'Attendance',
-        href: paths.dashboard.attendance
       }
     ]
   },

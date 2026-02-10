@@ -22,7 +22,7 @@ export default function Page(): React.JSX.Element {
   const [selectedCourseId, setSelectedCourseId] = React.useState<string | null>(null);
   const [courseIds, setCourseIds] = React.useState<string[]>([]);
 
-  const fetchMyQuests = async (): Promise<void> => {
+  const fetchMyQuests = React.useCallback(async (): Promise<void> => {
     if (eduquestUser) {
       try {
         const response = await getMyQuests(eduquestUser.id.toString());
@@ -35,7 +35,7 @@ export default function Page(): React.JSX.Element {
         setLoading(false);
       }
     }
-  }
+  }, [eduquestUser]);
 
 
   React.useEffect(() => {
@@ -46,7 +46,7 @@ export default function Page(): React.JSX.Element {
     fetchData().catch((error: unknown) => {
       logger.error('Failed to fetch data', error);
     });
-  }, []);
+  }, [fetchMyQuests]);
 
   const handleCourseChange = (event: SelectChangeEvent): void => {
     setSelectedCourseId(event.target.value);

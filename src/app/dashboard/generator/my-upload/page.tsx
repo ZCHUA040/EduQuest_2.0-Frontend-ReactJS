@@ -18,7 +18,7 @@ export default function Page(): React.JSX.Element {
 
 
 
-  const fetchMyDocuments = async (): Promise<void> => {
+  const fetchMyDocuments = React.useCallback(async (): Promise<void> => {
     if (eduquestUser) {
       try {
         const response = await getMyDocuments(eduquestUser.id.toString());
@@ -30,7 +30,7 @@ export default function Page(): React.JSX.Element {
         setLoadingDocuments(false);
       }
     }
-  }
+  }, [eduquestUser]);
 
   const handleDeleteSuccess = async (): Promise<void> => {
     await fetchMyDocuments();
@@ -49,7 +49,7 @@ export default function Page(): React.JSX.Element {
     fetchData().catch((error: unknown) => {
       logger.error('Failed to fetch data', error);
     });
-  }, []);
+  }, [fetchMyDocuments]);
 
 
   return (

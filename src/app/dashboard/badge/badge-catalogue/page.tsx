@@ -20,6 +20,7 @@ import { BadgeCard } from "@/components/dashboard/badge/badge-card";
 import { SkeletonBadgeCard } from "@/components/dashboard/skeleton/skeleton-badge-card";
 import { createBadge, deleteBadge, getBadges, updateBadge } from "@/api/services/badge";
 import { getImages } from "@/api/services/image";
+import { useUser } from "@/hooks/use-user";
 
 interface BadgeFormState {
   name: string;
@@ -38,6 +39,7 @@ const emptyBadgeForm: BadgeFormState = {
 };
 
 export default function Page(): React.JSX.Element {
+  const { eduquestUser } = useUser();
   const [badges, setBadges] = React.useState<Badge[]>([]);
   const [images, setImages] = React.useState<Image[]>([]);
   const [loadingBadge, setLoadingBadge] = React.useState(true);
@@ -49,6 +51,7 @@ export default function Page(): React.JSX.Element {
   const [badgeForm, setBadgeForm] = React.useState<BadgeFormState>(emptyBadgeForm);
   const [manageError, setManageError] = React.useState<string | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
+  const canManageBadges = Boolean(eduquestUser?.is_staff || eduquestUser?.is_superuser);
 
   const fetchMyCourseBadges = async (): Promise<void> => {
     try {
@@ -220,9 +223,11 @@ export default function Page(): React.JSX.Element {
         <Stack spacing={1}>
           <Typography variant="h4">Badge Catalogue</Typography>
         </Stack>
-        <Button variant="outlined" onClick={handleOpenManage}>
-          Manage Badges
-        </Button>
+        {canManageBadges ? (
+          <Button variant="outlined" onClick={handleOpenManage}>
+            Manage Badges
+          </Button>
+        ) : null}
       </Stack>
 
       <Stack spacing={1} sx={{ flex: '1 1 auto' }}>

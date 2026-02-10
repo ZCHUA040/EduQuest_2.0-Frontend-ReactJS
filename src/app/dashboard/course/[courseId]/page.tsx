@@ -40,10 +40,11 @@ import {CourseExpiresDialog} from "@/components/dashboard/dialog/course-expires-
 // import {CalendarX as CalendarXIcon} from "@phosphor-icons/react/dist/ssr/CalendarX";
 import {Upload as UploadIcon} from "@phosphor-icons/react/dist/ssr/Upload";
 import {getCourse, updateCourse} from "@/api/services/course";
-import {getCourseGroupsByCourse} from "@/api/services/course-group";
+import {deleteCourseGroup, getCourseGroupsByCourse} from "@/api/services/course-group";
 import {CourseGroupCard} from "@/components/dashboard/course-group/course-group-card";
 import {getQuests, getQuestsByCourseGroup} from "@/api/services/quest";
 import {CourseNewGroupForm} from "@/components/dashboard/course-group/course-group-new-form";
+import {CourseGroupEditForm} from "@/components/dashboard/course-group/course-group-edit-form";
 import type {CourseGroup} from "@/types/course-group";
 import {getUserCourseGroupEnrollmentsByCourseAndUser} from "@/api/services/user-course-group-enrollment";
 import type {UserCourseGroupEnrollment} from "@/types/user-course-group-enrollment";
@@ -76,6 +77,7 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
   const [showEditCourseForm, setShowEditCourseForm] = React.useState(false);
   const [showCreateQuestForm, setShowCreateQuestForm] = React.useState(false);
   const [showCreateCourseGroupForm, setShowCreateCourseGroupForm] = React.useState(false);
+  const [showEditCourseGroupForm, setShowEditCourseGroupForm] = React.useState(false);
   const [expanded, setExpanded] = React.useState(false);
   const [loadingQuests, setLoadingQuests] = React.useState(false);
   const [loadingCourse, setLoadingCourse] = React.useState(true);
@@ -100,6 +102,10 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
 
   const toggleCreateCourseGroupForm = (): void => {
     setShowCreateCourseGroupForm(!showCreateCourseGroupForm);
+  }
+
+  const toggleEditCourseGroupForm = (): void => {
+    setShowEditCourseGroupForm(!showEditCourseGroupForm);
   }
 
   const toggleEditCourseForm = (): void => {
@@ -130,7 +136,7 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
     }
   }
 
-  const fetchCourse = async (): Promise<void> => {
+  const fetchCourse = React.useCallback(async (): Promise<void> => {
     try {
       const response = await getCourse(params.courseId);
       setCourse(response);
@@ -140,9 +146,9 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
     } finally {
       setLoadingCourse(false);
     }
-  };
+  }, [params.courseId]);
 
-  const fetchMyCourseGroups = async (): Promise<void> => {
+  const fetchMyCourseGroups = React.useCallback(async (): Promise<void> => {
     if (eduquestUser) {
       try {
         const response = await getUserCourseGroupEnrollmentsByCourseAndUser(params.courseId, eduquestUser?.id.toString());
@@ -154,9 +160,9 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
         setLoadingUserCourseGroupEnrollments(false);
       }
     }
-  }
+  }, [eduquestUser, params.courseId]);
 
-  const fetchCourseGroups = async (): Promise<void> => {
+  const fetchCourseGroups = React.useCallback(async (): Promise<void> => {
     try {
       const response = await getCourseGroupsByCourse(params.courseId);
       setCourseGroups(response);
@@ -166,7 +172,7 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
     } finally {
       setLoadingCourseGroups(false);
     }
-  }
+  }, [params.courseId]);
 
   const fetchQuestsByCourseGroup = async (courseGroupId: string): Promise<void> => {
     try {
@@ -178,6 +184,23 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
       logger.error('Failed to fetch quests', error);
     } finally {
       setLoadingQuests(false);
+    }
+  };
+
+  const handleDeleteCourseGroup = async (): Promise<void> => {
+    if (!selectedCourseGroupId) {
+      setSubmitStatus({ type: 'error', message: 'Please select a group to delete.' });
+      return;
+    }
+    try {
+      await deleteCourseGroup(selectedCourseGroupId);
+      await fetchCourseGroups();
+      setSelectedCourseGroupId(null);
+      setQuests([]);
+      setShowEditCourseGroupForm(false);
+    } catch (error: unknown) {
+      logger.error('Failed to delete course group', error);
+      setSubmitStatus({ type: 'error', message: 'Failed to delete course group.' });
     }
   };
 
@@ -204,7 +227,14 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
     fetchData().catch((error: unknown) => {
       logger.error('Failed to fetch data', error);
     });
-  }, []);
+  }, [fetchMyCourseGroups, fetchCourse, fetchCourseGroups]);
+
+  const selectedCourseGroup = React.useMemo(() => {
+    if (!courseGroups || !selectedCourseGroupId) {
+      return null;
+    }
+    return courseGroups.find((group) => group.id.toString() === selectedCourseGroupId) || null;
+  }, [courseGroups, selectedCourseGroupId]);
 
 
   return (
@@ -415,8 +445,17 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
               variant={showCreateCourseGroupForm ? 'text' : 'contained'}
               color={showCreateCourseGroupForm ? 'error' : 'primary'}
               onClick={toggleCreateCourseGroupForm}
+              disabled={showEditCourseGroupForm}
             >
               {showCreateCourseGroupForm ? 'Cancel' : 'Create Group'}
+            </Button>
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={() => { setShowEditCourseGroupForm(true); }}
+              disabled={!selectedCourseGroupId || showEditCourseGroupForm || showCreateCourseGroupForm}
+            >
+              Edit Group
             </Button>
           </Stack>
           : null }
@@ -424,9 +463,21 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
 
       {showCreateCourseGroupForm && courseGroups ?
         <CourseNewGroupForm
-          onFormSubmitSuccess={fetchCourseGroups}
+          onFormSubmitSuccess={async () => {
+            await fetchCourseGroups();
+            setShowCreateCourseGroupForm(false);
+          }}
           courseId={params.courseId}
         /> : null}
+
+      {showEditCourseGroupForm && selectedCourseGroup ? (
+        <CourseGroupEditForm
+          courseGroup={selectedCourseGroup}
+          onCancel={toggleEditCourseGroupForm}
+          onSuccess={fetchCourseGroups}
+          onDelete={handleDeleteCourseGroup}
+        />
+      ) : null}
 
 
       {loadingCourseGroups || loadingUserCourseGroupEnrollments ? (
@@ -440,7 +491,6 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
       ) : (
         <Typography variant="body1" pb={2}>No groups available for this course</Typography>
       )}
-
 
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', verticalAlign: 'center', pt: 3 }}>
         <Box>

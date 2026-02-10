@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from 'react';
+import axios from 'axios';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardActions from '@mui/material/CardActions';
@@ -8,6 +9,7 @@ import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import Divider from '@mui/material/Divider';
 import FormControl from '@mui/material/FormControl';
+import FormHelperText from '@mui/material/FormHelperText';
 import Grid from '@mui/material/Unstable_Grid2';
 import microService from "@/api/micro-service";
 import {logger} from "@/lib/default-logger";
@@ -60,13 +62,15 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
   const [selectedCourseGroupId, setSelectedCourseGroupId] = React.useState<string>('');
 
   const [selectedDocument, setSelectedDocument] = React.useState<Document | null>(null);
+  const [selectedDocumentId, setSelectedDocumentId] = React.useState<number | ''>('');
   const [submitStatus, setSubmitStatus] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [formErrors, setFormErrors] = React.useState<Record<string, string>>({});
   const [progress, setProgress] = React.useState(0);
   const [progressStatus, setProgressStatus] = React.useState<string>(''); // New state for progress status message
   const [showProgress, setShowProgress] = React.useState(false); // State to control progress bar visibility
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const fetchImages = async (): Promise<void> => {
+  const fetchImages = React.useCallback(async (): Promise<void> => {
     try {
       const response = await getImages();
       const privateQuestImages = response.filter(image => image.name === 'Private Quest');
@@ -74,23 +78,30 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
     } catch (error: unknown) {
       logger.error('Failed to fetch images', error);
     }
-  }
+  }, []);
 
-  const fetchCourseGroups = async (): Promise<void> => {
+  const fetchCourseGroups = React.useCallback(async (): Promise<void> => {
     if (eduquestUser) {
       try {
-        const response = await getNonPrivateCourseGroups()
+        const response = await getNonPrivateCourseGroups();
         setCourseGroups(response);
+        if (response.length && !selectedCourseGroupId) {
+          const privateGroup = response.find(
+            (courseGroup) => courseGroup.name.toLowerCase() === 'private course group'
+          );
+          setSelectedCourseGroupId(String((privateGroup ?? response[0])?.id));
+        }
         logger.debug('Course groups from private course', response);
       } catch (error: unknown) {
         logger.error('Failed to fetch course groups', error);
       }
     }
-  };
+  }, [eduquestUser, selectedCourseGroupId]);
 
   // Handle document change
   const handleDocumentChange = (event: SelectChangeEvent<number>): void => {
     const documentId = Number(event.target.value);
+    setSelectedDocumentId(documentId);
     const document = documents?.find(d => d.id === documentId);
     if (document) {
       setSelectedDocument({
@@ -102,13 +113,64 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
         uploaded_by: document.uploaded_by
       });
     }
+    if (formErrors.document) {
+      setFormErrors(prev => ({ ...prev, document: '' }));
+    }
   };
 
   const handleCourseGroupChange = (event: SelectChangeEvent): void => {
     setSelectedCourseGroupId(event.target.value);
+    if (formErrors.courseGroup) {
+      setFormErrors(prev => ({ ...prev, courseGroup: '' }));
+    }
   };
 
-  const fetchMyDocuments = async (): Promise<void> => {
+  const getCreateQuestErrorMessage = (error: unknown): string => {
+    if (axios.isAxiosError(error)) {
+      const statusCode = error.response?.status;
+      if (statusCode === 400) {
+        return 'Failed to create quest. Please check the quest details.';
+      }
+      if (statusCode === 401 || statusCode === 403) {
+        return 'You are not allowed to create this quest.';
+      }
+      if (statusCode && statusCode >= 500) {
+        return 'Failed to create quest due to a server issue. Please try again later.';
+      }
+    }
+    return 'Failed to create quest. Please try again.';
+  };
+
+  const getGenerateQuestionsErrorMessage = (error: unknown): string => {
+    if (axios.isAxiosError(error)) {
+      const statusCode = error.response?.status;
+      if (statusCode === 400) {
+        return 'Question generation failed. Please use a valid uploaded document.';
+      }
+      if (statusCode === 408 || statusCode === 504) {
+        return 'Question generation timed out. Please try with fewer questions.';
+      }
+      if (statusCode && statusCode >= 500) {
+        return 'Question generation failed due to a server issue. Please try again later.';
+      }
+    }
+    return 'Question generation failed. Please try again.';
+  };
+
+  const getCreateQuestionsErrorMessage = (error: unknown): string => {
+    if (axios.isAxiosError(error)) {
+      const statusCode = error.response?.status;
+      if (statusCode === 400) {
+        return 'Questions were generated but could not be saved. Please try again.';
+      }
+      if (statusCode && statusCode >= 500) {
+        return 'Failed to save generated questions due to a server issue.';
+      }
+    }
+    return 'Failed to save generated questions. Please try again.';
+  };
+
+  const fetchMyDocuments = React.useCallback(async (): Promise<void> => {
     if (eduquestUser) {
       try {
         const response = await getMyDocuments(eduquestUser.id.toString());
@@ -118,89 +180,109 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
         logger.error('Failed to fetch documents', error);
       }
     }
-  }
+  }, [eduquestUser]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     if (isSubmitting) {
       return;
     }
+    setSubmitStatus(null);
+    const nextErrors: Record<string, string> = {};
+
+    const questName = questNameRef.current?.value?.trim() || '';
+    const questDescription = questDescriptionRef.current?.value?.trim() || '';
+    const maxAttempts = Number(questMaxAttemptsRef.current?.value);
+    const numQuestions = Number(numQuestionsRef.current?.value);
+    const difficulty = difficultyRef.current?.value || '';
+    const selectedSourceDocument = selectedDocument ?? documents?.find((doc) => doc.id === selectedDocumentId) ?? documents?.[0] ?? null;
+
+    if (!questName) {
+      nextErrors.questName = 'Quest Name is required.';
+    }
+    if (!questDescription) {
+      nextErrors.questDescription = 'Quest Description is required.';
+    }
+    if (!Number.isFinite(maxAttempts) || maxAttempts < 1) {
+      nextErrors.maxAttempts = 'Max Attempts must be at least 1.';
+    }
+    if (!Number.isFinite(numQuestions) || numQuestions < 1) {
+      nextErrors.numQuestions = 'Number of Questions must be at least 1.';
+    }
+    if (!difficulty) {
+      nextErrors.difficulty = 'Difficulty is required.';
+    }
+    if (!selectedSourceDocument) {
+      nextErrors.document = 'Please upload/select a document source first.';
+    }
+    if (!selectedCourseGroupId) {
+      nextErrors.courseGroup = 'Course Group is required.';
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFormErrors(nextErrors);
+      setSubmitStatus({ type: 'error', message: 'Please complete all required fields.' });
+      return;
+    }
+    setFormErrors({});
+
+    if (!images?.length || !eduquestUser || !questTypeRef.current || !questStatusRef.current || !selectedSourceDocument) {
+      setSubmitStatus({ type: 'error', message: 'Unable to process request. Please refresh and try again.' });
+      return;
+    }
+
     setIsSubmitting(true);
-    setSubmitStatus(null); // Reset submit status
-    setProgress(10); // Initial progress
-    setProgressStatus('Creating a new Quest'); // Initial progress status
-    setShowProgress(true); // Show progress bar
+    setProgress(10);
+    setProgressStatus('Creating a new Quest');
+    setShowProgress(true);
 
-    if (
-      images?.length &&
-      courseGroups?.length &&
-      selectedCourseGroupId &&
-      eduquestUser &&
-      questTypeRef.current &&
-      questNameRef.current &&
-      questDescriptionRef.current &&
-      questStatusRef.current &&
-      questMaxAttemptsRef.current
-    ) {
-      const newQuest = {
-        type: questTypeRef.current?.value,
-        name: questNameRef.current?.value,
-        description: questDescriptionRef.current?.value,
-        status: questStatusRef.current?.value,
-        max_attempts: Number(questMaxAttemptsRef.current?.value),
-        expiration_date: null,
-        tutorial_date: null,
-        course_group_id: Number(selectedCourseGroupId),
-        organiser_id: eduquestUser?.id,
-        image_id: images?.[0]?.id,
-        source_document_id: selectedDocument?.id ?? documents?.[0]?.id ?? null
-      };
+    const newQuest = {
+      type: questTypeRef.current.value,
+      name: questName,
+      description: questDescription,
+      status: questStatusRef.current.value,
+      max_attempts: maxAttempts,
+      expiration_date: null,
+      tutorial_date: null,
+      course_group_id: Number(selectedCourseGroupId),
+      organiser_id: eduquestUser.id,
+      image_id: images[0].id,
+      source_document_id: selectedSourceDocument.id
+    };
 
-    const filename = selectedDocument?.file || documents?.[0].file;
-    const newQuestId = await createNewQuest(newQuest);
+    try {
+      const filename = selectedSourceDocument.file;
+      const newQuestId = await createNewQuest(newQuest);
+      if (!newQuestId) {
+        setProgressStatus('Quest creation failed');
+        return;
+      }
 
+      setProgress(40);
+      setProgressStatus('Generating Questions from Document');
 
-    if (newQuestId) {
-      setProgress(40); // Progress after quest creation
-      setProgressStatus('Generating Questions from Document'); // Progress status after quest creation
-      logger.debug('Calling generateQuestions');
       const generatedQuestions = await generateQuestions(
         filename?.split('/').pop() || '',
-        Number(numQuestionsRef.current?.value),
-        difficultyRef.current?.value || ''
+        numQuestions,
+        difficulty
       );
 
-      logger.debug('Generated questions:', generatedQuestions);
-      // logger.debug('is array:', Array.isArray(generatedQuestions.questions));
-
-      if (generatedQuestions === null) {
-        logger.debug('Generated questions is null');
-        setSubmitStatus({ type: 'error', message: 'Generate Failed. Please try again.' });
-        setProgressStatus('Generation failed'); // Progress status on failure
-      } else if (Array.isArray(generatedQuestions.questions)) {
-        setProgress(70); // Progress after questions generation
-        setProgressStatus('Importing Questions generated'); // Progress status after questions generation
-        logger.debug('Generated questions is an array');
-        await bulkCreateQuestions(generatedQuestions.questions, newQuestId);
-        setProgress(100); // Final progress
-        setProgressStatus('Completed'); // Final progress status
-      } else {
-        logger.debug('Generated questions is not an array:', generatedQuestions);
-        setSubmitStatus({ type: 'error', message: 'Generate Failed. Please try again.' });
-        setProgressStatus('Generation failed'); // Progress status on failure
+      if (!generatedQuestions || !Array.isArray(generatedQuestions.questions)) {
+        setSubmitStatus({ type: 'error', message: 'Question generation failed. Please try again.' });
+        setProgressStatus('Generation failed');
+        return;
       }
 
-      } else {
-        setSubmitStatus({ type: 'error', message: 'Quest creation failed. Please try again.' });
-        setProgressStatus('Quest creation failed'); // Progress status on failure
-      }
+      setProgress(70);
+      setProgressStatus('Importing Questions generated');
 
-    } else {
-      setSubmitStatus({ type: 'error', message: 'Please fill in all required fields.' });
-      setProgressStatus('Quest creation failed'); // Progress status
+      await bulkCreateQuestions(generatedQuestions.questions, newQuestId);
+      setProgress(100);
+      setProgressStatus('Completed');
+    } finally {
+      setShowProgress(false);
+      setIsSubmitting(false);
     }
-    setShowProgress(false); // Hide progress bar after submission
-    setIsSubmitting(false);
   };
 
 
@@ -212,7 +294,7 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
     }
     catch (error: unknown) {
       logger.error('Failed to create quest', error);
-      setSubmitStatus({ type: 'error', message: 'Create Failed. Please try again.' });
+      setSubmitStatus({ type: 'error', message: getCreateQuestErrorMessage(error) });
       return null;
     }
   }
@@ -228,7 +310,7 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
       return response.data;
     } catch (error: unknown) {
       logger.error('Error in generateQuestions:', error);
-      setSubmitStatus({ type: 'error', message: 'Generate Failed. Please try again.' });
+      setSubmitStatus({ type: 'error', message: getGenerateQuestionsErrorMessage(error) });
       return null; // Explicitly return null on error
     } finally {
       logger.debug('Exiting generateQuestions');
@@ -255,9 +337,8 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
       onFormSubmitSuccess();
     }
     catch (error: unknown) {
-      const errorMessage = 'Questions Create Failed. Please try again.';
       logger.error('Questions Create Failed', error);
-      setSubmitStatus({type: 'error', message: errorMessage});
+      setSubmitStatus({type: 'error', message: getCreateQuestionsErrorMessage(error)});
     }
   }
 
@@ -271,13 +352,26 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
     fetchData().catch((error: unknown) => {
       logger.error('Failed to fetch data', error);
     });
-  }, []);
+  }, [fetchImages, fetchCourseGroups, fetchMyDocuments]);
 
   React.useEffect(() => {
     if (courseGroups?.length && !selectedCourseGroupId) {
       setSelectedCourseGroupId(String(courseGroups[0]?.id));
     }
   }, [courseGroups, selectedCourseGroupId]);
+
+  React.useEffect(() => {
+    if (documents?.length) {
+      const defaultDocument = documents[0];
+      setSelectedDocument(defaultDocument);
+      setSelectedDocumentId(defaultDocument.id);
+    } else {
+      setSelectedDocument(null);
+      setSelectedDocumentId('');
+    }
+  }, [documents]);
+
+  const firstDocument = documents?.[0] ?? null;
 
 
   return (
@@ -307,7 +401,7 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
         <CardContent>
           <Grid container spacing={3}>
             <Grid md={4} xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.questName)}>
                 <FormLabel htmlFor="quest name">Quest Name</FormLabel>
                 <TextField
                   defaultValue="My Private Quest"
@@ -315,6 +409,14 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
                   placeholder="The name of your quest"
                   variant='outlined'
                   size='small'
+                  required
+                  error={Boolean(formErrors.questName)}
+                  helperText={formErrors.questName || ''}
+                  onChange={() => {
+                    if (formErrors.questName) {
+                      setFormErrors(prev => ({ ...prev, questName: '' }));
+                    }
+                  }}
                 />
               </FormControl>
             </Grid>
@@ -329,13 +431,14 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
               </FormControl>
             </Grid>
             <Grid md={4} xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.courseGroup)}>
                 <FormLabel htmlFor="course group">Course Group</FormLabel>
                 <Select
                   value={selectedCourseGroupId}
                   label="Course Group"
                   onChange={handleCourseGroupChange}
                   size="small"
+                  disabled
                 >
                   {courseGroups?.map((courseGroup) => (
                     <MenuItem key={courseGroup.id} value={String(courseGroup.id)}>
@@ -343,6 +446,7 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
                     </MenuItem>
                   ))}
                 </Select>
+                {formErrors.courseGroup ? <FormHelperText>{formErrors.courseGroup}</FormHelperText> : null}
               </FormControl>
             </Grid>
             <Grid md={4} xs={12}>
@@ -355,7 +459,7 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
               </FormControl>
             </Grid>
             <Grid xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.questDescription)}>
                 <FormLabel htmlFor="quest description">Quest Description</FormLabel>
                 <TextField
                   defaultValue="Private quest for my own learning."
@@ -364,11 +468,19 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
                   variant='outlined'
                   multiline
                   rows={3}
+                  required
+                  error={Boolean(formErrors.questDescription)}
+                  helperText={formErrors.questDescription || ''}
+                  onChange={() => {
+                    if (formErrors.questDescription) {
+                      setFormErrors(prev => ({ ...prev, questDescription: '' }));
+                    }
+                  }}
                 />
               </FormControl>
             </Grid>
             <Grid md={4} xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.maxAttempts)}>
                 <FormLabel htmlFor="max attempts">Max Attempts</FormLabel>
                 <TextField
                   defaultValue="1"
@@ -377,11 +489,19 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
                   inputProps={{min: 1}}
                   variant='outlined'
                   size='small'
+                  required
+                  error={Boolean(formErrors.maxAttempts)}
+                  helperText={formErrors.maxAttempts || ''}
+                  onChange={() => {
+                    if (formErrors.maxAttempts) {
+                      setFormErrors(prev => ({ ...prev, maxAttempts: '' }));
+                    }
+                  }}
                 />
               </FormControl>
             </Grid>
             <Grid md={4} xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.numQuestions)}>
                 <FormLabel htmlFor="num questions">Number of Questions</FormLabel>
                 <TextField
                   defaultValue="3"
@@ -390,36 +510,57 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
                   inputProps={{min: 1}}
                   variant='outlined'
                   size='small'
+                  required
+                  error={Boolean(formErrors.numQuestions)}
+                  helperText={formErrors.numQuestions || ''}
+                  onChange={() => {
+                    if (formErrors.numQuestions) {
+                      setFormErrors(prev => ({ ...prev, numQuestions: '' }));
+                    }
+                  }}
                 />
               </FormControl>
             </Grid>
             <Grid md={4} xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.difficulty)}>
                 <FormLabel htmlFor="difficulty">Difficulty</FormLabel>
-                <Select defaultValue="Easy" label="Difficulty" inputRef={difficultyRef} size="small">
+                <Select
+                  defaultValue="Easy"
+                  label="Difficulty"
+                  inputRef={difficultyRef}
+                  size="small"
+                  required
+                  onChange={() => {
+                    if (formErrors.difficulty) {
+                      setFormErrors(prev => ({ ...prev, difficulty: '' }));
+                    }
+                  }}
+                >
                   <MenuItem value="Easy">Easy</MenuItem>
                   <MenuItem value="Intermediate">Intermediate</MenuItem>
                   <MenuItem value="Difficult">Difficult</MenuItem>
                 </Select>
+                {formErrors.difficulty ? <FormHelperText>{formErrors.difficulty}</FormHelperText> : null}
               </FormControl>
             </Grid>
           </Grid>
 
           <Typography sx={{mt: 4}} variant="h6">Document Source</Typography>
           <Typography sx={{mb: 3}} variant="body2" color="text.secondary">Select a document to generate questions from:</Typography>
-          {documents && documents.length > 0 ?
+          {documents && documents.length > 0 && firstDocument ?
             <Grid container spacing={3}>
               <Grid md={4} xs={12}>
-                <FormControl fullWidth required>
+                <FormControl fullWidth required error={Boolean(formErrors.document)}>
                   <FormLabel htmlFor="document">Document</FormLabel>
                   <Select
                     id="document"
-                    defaultValue={documents[0]?.id}
+                    value={selectedDocumentId}
                     onChange={handleDocumentChange}
                     inputRef={questCourseIdRef}
                     variant="outlined"
                     type="number"
                     size="small"
+                    required
                   >
                     {documents.map((option) => (
                       <MenuItem key={option.id} value={option.id}>
@@ -427,21 +568,22 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
                       </MenuItem>
                     ))}
                   </Select>
+                  {formErrors.document ? <FormHelperText>{formErrors.document}</FormHelperText> : null}
                 </FormControl>
               </Grid>
               <Grid md={8} xs={12} sx={{display: {xs: 'none', md: 'block'}}}/>
               <Grid md={3} xs={6}>
                 <Typography variant="overline" color="text.secondary">Filename</Typography>
-                <Typography variant="body2">{selectedDocument?.name || documents[0].name}</Typography>
+                <Typography variant="body2">{selectedDocument?.name || firstDocument.name}</Typography>
               </Grid>
               <Grid md={3} xs={6}>
                 <Typography variant="overline" color="text.secondary"> Size</Typography>
-                <Typography variant="body2">{selectedDocument?.size || documents[0].size} MB</Typography>
+                <Typography variant="body2">{selectedDocument?.size || firstDocument.size} MB</Typography>
               </Grid>
               <Grid md={3} xs={6}>
                 <Typography variant="overline" color="text.secondary">Uploaded At</Typography>
                 <Typography
-                  variant="body2"> {new Date(selectedDocument?.uploaded_at || documents[0].uploaded_at).toLocaleDateString("en-SG", {
+                  variant="body2"> {new Date(selectedDocument?.uploaded_at || firstDocument.uploaded_at).toLocaleDateString("en-SG", {
                   day: "2-digit",
                   month: "short",
                   year: "numeric",
@@ -453,7 +595,7 @@ export function GenerateQuestForm({onFormSubmitSuccess}: CourseFormProps): React
               <Grid md={3} xs={6}>
                 <Typography variant="overline" color="text.secondary">Source</Typography>
                 <Typography variant="body2">
-                  <a href={selectedDocument?.file || documents[0].file} target="_blank" rel="noopener noreferrer">
+                  <a href={selectedDocument?.file || firstDocument.file} target="_blank" rel="noopener noreferrer">
                     Source
                   </a>
                 </Typography>

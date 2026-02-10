@@ -8,6 +8,7 @@ import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import Divider from '@mui/material/Divider';
 import FormControl from '@mui/material/FormControl';
+import FormHelperText from '@mui/material/FormHelperText';
 import FormLabel from '@mui/material/FormLabel';
 import Grid from '@mui/material/Unstable_Grid2';
 import {logger} from "@/lib/default-logger";
@@ -61,6 +62,7 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
   const [selectedCoordinators, setSelectedCoordinators] = React.useState<EduquestUser[]>([]);
 
   const [submitStatus, setSubmitStatus] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [formErrors, setFormErrors] = React.useState<Record<string, string>>({});
 
   const fetchTerms = async (): Promise<void> => {
     try {
@@ -103,6 +105,9 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
     const termId = Number(event.target.value);
     const term = terms?.find(t => t.id === termId) || null;
     setSelectedTerm(term);
+    if (formErrors.term) {
+      setFormErrors(prev => ({ ...prev, term: '' }));
+    }
   };
 
   // Handle Image Change
@@ -110,6 +115,9 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
     const imageId = Number(event.target.value);
     const image = images?.find(i => i.id === imageId) || null;
     setSelectedImage(image);
+    if (formErrors.image) {
+      setFormErrors(prev => ({ ...prev, image: '' }));
+    }
   };
 
   // Handle Coordinators Change
@@ -123,12 +131,52 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
     const selectedCoordinatorObjects = coordinators?.filter(coordinator => selectedCoordinatorIds.includes(coordinator.id)) || [];
 
     setSelectedCoordinators(selectedCoordinatorObjects);
+    if (formErrors.coordinators) {
+      setFormErrors(prev => ({ ...prev, coordinators: '' }));
+    }
   };
 
 
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
+    const nextErrors: Record<string, string> = {};
+
+    if (!courseNameRef.current?.value.trim()) {
+      nextErrors.courseName = 'Course Name is required.';
+    }
+    if (!courseCodeRef.current?.value.trim()) {
+      nextErrors.courseCode = 'Course Code is required.';
+    }
+    if (!courseDescriptionRef.current?.value.trim()) {
+      nextErrors.courseDescription = 'Course Description is required.';
+    }
+    if (!courseTypeRef.current?.value.trim()) {
+      nextErrors.courseType = 'Course Type is required.';
+    }
+    if (!courseStatusRef.current?.value.trim()) {
+      nextErrors.courseStatus = 'Course Status is required.';
+    }
+    if (selectedCoordinators.length === 0) {
+      nextErrors.coordinators = 'Please select at least one coordinator.';
+    }
+    if (!selectedImage) {
+      nextErrors.image = 'Please select a thumbnail.';
+    }
+    if (!selectedTerm) {
+      nextErrors.term = 'Please select a term.';
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFormErrors(nextErrors);
+      setSubmitStatus({
+        type: 'error',
+        message: `Please complete all the required fields.`
+      });
+      return;
+    }
+
+    setFormErrors({});
 
     if (
       courseCodeRef.current &&
@@ -155,6 +203,21 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
         onFormSubmitSuccess();
         logger.debug('New Course has been created successfully:', response);
         setSubmitStatus({ type: 'success', message: 'Create Successful' });
+        setFormErrors({});
+
+        if (courseCodeRef.current) {
+          courseCodeRef.current.value = '';
+        }
+        if (courseNameRef.current) {
+          courseNameRef.current.value = '';
+        }
+        if (courseDescriptionRef.current) {
+          courseDescriptionRef.current.value = '';
+        }
+
+        setSelectedCoordinators([]);
+        setSelectedTerm(terms?.[0] ?? null);
+        setSelectedImage(images?.[0] ?? null);
       }
       catch (error: unknown) {
         logger.error('Failed to create new course', error);
@@ -195,7 +258,7 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
 
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <form onSubmit={handleSubmit}>
       <Card>
         <CardHeader subheader="Add new course to the system" title="New Course" />
         <Divider />
@@ -203,7 +266,7 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
           <Grid container spacing={3}>
             {/* Course Name */}
             <Grid md={6} xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.courseName)}>
                 <FormLabel htmlFor="course-name">Course Name</FormLabel>
                 <TextField
                   id="course-name"
@@ -211,6 +274,13 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
                   placeholder="The title of the course"
                   variant='outlined'
                   size='small'
+                  error={Boolean(formErrors.courseName)}
+                  helperText={formErrors.courseName || ''}
+                  onChange={() => {
+                    if (formErrors.courseName) {
+                      setFormErrors(prev => ({ ...prev, courseName: '' }));
+                    }
+                  }}
                   required
                 />
               </FormControl>
@@ -218,7 +288,7 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
 
             {/* Course Code */}
             <Grid md={6} xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.courseCode)}>
                 <FormLabel htmlFor="course-code">Course Code</FormLabel>
                 <TextField
                   id="course-code"
@@ -226,6 +296,13 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
                   placeholder="The code of the course"
                   variant='outlined'
                   size='small'
+                  error={Boolean(formErrors.courseCode)}
+                  helperText={formErrors.courseCode || ''}
+                  onChange={() => {
+                    if (formErrors.courseCode) {
+                      setFormErrors(prev => ({ ...prev, courseCode: '' }));
+                    }
+                  }}
                   required
                 />
               </FormControl>
@@ -233,7 +310,7 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
 
             {/* Course Type */}
             <Grid md={6} xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.courseType)}>
                 <Stack direction="row" alignItems="center" spacing={1}>
                   <FormLabel htmlFor="course-type">Course Type</FormLabel>
                   <Tooltip
@@ -272,12 +349,13 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
                     <Chip variant="outlined" label="Private" color="secondary" size="small" />
                   </MenuItem>
                 </Select>
+                {formErrors.courseType ? <FormHelperText>{formErrors.courseType}</FormHelperText> : null}
               </FormControl>
             </Grid>
 
             {/* Course Status */}
             <Grid md={6} xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.courseStatus)}>
                 <FormLabel htmlFor="course-status">Course Status</FormLabel>
                 <Select
                   id="course-status"
@@ -295,12 +373,13 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
                     <Chip variant="outlined" label="Expired" color="secondary" size="small" />
                   </MenuItem>
                 </Select>
+                {formErrors.courseStatus ? <FormHelperText>{formErrors.courseStatus}</FormHelperText> : null}
               </FormControl>
             </Grid>
 
             {/* Course Description */}
             <Grid xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.courseDescription)}>
                 <FormLabel htmlFor="course-description">Course Description</FormLabel>
                 <TextField
                   id="course-description"
@@ -310,6 +389,13 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
                   multiline
                   size="medium"
                   rows={3}
+                  error={Boolean(formErrors.courseDescription)}
+                  helperText={formErrors.courseDescription || ''}
+                  onChange={() => {
+                    if (formErrors.courseDescription) {
+                      setFormErrors(prev => ({ ...prev, courseDescription: '' }));
+                    }
+                  }}
                   required
                 />
               </FormControl>
@@ -317,7 +403,7 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
 
             {/* Coordinators Selection */}
             <Grid xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.coordinators)}>
                 <FormLabel htmlFor="course-coordinators">Course Coordinators</FormLabel>
                 <Select
                   labelId="coordinators-label"
@@ -351,6 +437,7 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
                     <MenuItem disabled>No Coordinators Available</MenuItem>
                   )}
                 </Select>
+                {formErrors.coordinators ? <FormHelperText>{formErrors.coordinators}</FormHelperText> : null}
               </FormControl>
             </Grid>
 
@@ -358,23 +445,34 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
 
           <Divider sx={{my:3}}/>
 
-          <Typography sx={{my:3}} variant="h6">Thumbnail</Typography>
+          <Stack direction="row" sx={{ my: 3, alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6">Thumbnail</Typography>
+          </Stack>
 
           {isImagesLoading ? <Skeleton variant="rectangular" height={50}/>
-            : images ?
+            : images && images.length > 0 ?
             <Grid container spacing={3} >
               <Grid container md={6} xs={12} alignItems="flex-start">
                 <Grid xs={12}>
-                  <FormControl required>
+                  <FormControl required error={Boolean(formErrors.image)}>
                     <FormLabel htmlFor="thumbnail id">Thumbnail ID</FormLabel>
-                    <Select defaultValue={images[0]?.id} onChange={handleImageChange} inputRef={courseImageIdRef}
-                            label="Thumbnail ID" variant="outlined" type="number" size="small">
+                <Select
+                  value={selectedImage?.id ?? ''}
+                  onChange={handleImageChange}
+                  inputRef={courseImageIdRef}
+                  label="Thumbnail ID"
+                  variant="outlined"
+                  type="number"
+                  size="small"
+                  required
+                >
                       {images.map((option) => (
                         <MenuItem key={option.id} value={option.id}>
                           {option.id} - {option.name}
                         </MenuItem>
                       ))}
                     </Select>
+                    {formErrors.image ? <FormHelperText>{formErrors.image}</FormHelperText> : null}
                   </FormControl>
                 </Grid>
                 <Grid md={6} xs={12}>
@@ -400,21 +498,24 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
 
           <Divider sx={{my:3}}/>
 
-          <Typography sx={{my:3}} variant="h6">Term</Typography>
+          <Stack direction="row" sx={{ my: 3, alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6">Term</Typography>
+          </Stack>
           {isTermsLoading ? <Skeleton variant="rectangular" height={50}/>
-          : terms ?
+          : terms && terms.length > 0 ?
             <Grid container spacing={3} >
               <Grid md={6} xs={12}>
-                <FormControl required>
+                <FormControl required error={Boolean(formErrors.term)}>
                   <FormLabel htmlFor="term id">Term ID</FormLabel>
                   <Select
-                    defaultValue={terms[0]?.id}
+                    value={selectedTerm?.id ?? ''}
                     onChange={handleTermChange}
                     inputRef={courseTermIdRef}
                     label="Term ID"
                     variant="outlined"
                     type="number"
                     size="small"
+                    required
                   >
                     {terms.map((option) => (
                       <MenuItem key={option.id} value={option.id}>
@@ -422,6 +523,7 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
                       </MenuItem>
                     ))}
                   </Select>
+                  {formErrors.term ? <FormHelperText>{formErrors.term}</FormHelperText> : null}
                 </FormControl>
               </Grid>
               <Grid md={6} xs={12} sx={{ display: { xs: 'none', md: 'block' } }}/>
@@ -465,11 +567,12 @@ export function CourseNewForm({ onFormSubmitSuccess }: CourseFormProps): React.J
       </Card>
 
       {/* Submission Status */}
-      {submitStatus && (
+      {submitStatus ? (
         <Alert severity={submitStatus.type} sx={{ marginTop: 2 }}>
           {submitStatus.message}
         </Alert>
-      )}
+      ) : null}
+
     </form>
   );
 }

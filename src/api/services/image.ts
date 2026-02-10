@@ -11,3 +11,12 @@ export const getImage = async (id: string): Promise<Image> => {
   const response = await apiService.get<Image>(`/api/images/${id}/`);
   return response.data;
 }
+
+export const createImage = async (image: Pick<Image, 'name' | 'filename'>): Promise<Image> => {
+  const response = await apiService.post<Image>('/api/images/', image);
+  return response.data;
+}
+
+export const deleteImage = async (id: string): Promise<void> => {
+  await apiService.delete(`/api/images/${id}/`);
+}

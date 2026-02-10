@@ -37,7 +37,7 @@ export function MainNav(): React.JSX.Element {
     return name.replace(/^#|#$/g, '')
   }
 
-  const setUserPhotoAvatar = async (): Promise<void> => {
+  const setUserPhotoAvatar = React.useCallback(async (): Promise<void> => {
     if (eduquestUser) {
       try {
         logger.debug("User Avatar: ", avatar);
@@ -62,7 +62,7 @@ export function MainNav(): React.JSX.Element {
         logger.error('Error fetching user photo: ', error)
       }
     }
-  };
+  }, [avatar, eduquestUser]);
 
   // React.useEffect(() => {
   //   const fetchData = async (): Promise<void> => {
@@ -80,7 +80,7 @@ export function MainNav(): React.JSX.Element {
     fetchData().catch((error: unknown) => {
       logger.error('Failed to fetch data', error);
     });
-  }, [])
+  }, [setUserPhotoAvatar])
 
   return (
     <React.Fragment>

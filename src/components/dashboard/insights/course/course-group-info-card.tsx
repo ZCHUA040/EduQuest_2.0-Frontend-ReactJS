@@ -30,7 +30,7 @@ export function CourseGroupInfoCard({ groupProgress, onQuestSelect }: CourseGrou
   const isXs = useMediaQuery(theme.breakpoints.down('sm'));
   const itemsPerPage = isXs ? 2 : 4;
 
-  const handleNextPage = () => {
+  const handleNextPage = (): void => {
     if (groupProgress) {
       if (page < Math.ceil(groupProgress.quests.length / itemsPerPage) - 1) {
         setPage(page + 1);
@@ -38,7 +38,7 @@ export function CourseGroupInfoCard({ groupProgress, onQuestSelect }: CourseGrou
     }
   };
 
-  const handlePreviousPage = () => {
+  const handlePreviousPage = (): void => {
     if (page > 0) {
       setPage(page - 1);
     }

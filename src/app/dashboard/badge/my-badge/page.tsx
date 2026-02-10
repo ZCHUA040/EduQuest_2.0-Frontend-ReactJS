@@ -35,7 +35,7 @@ export default function Page(): React.JSX.Element {
     setValue(newValue);
   };
 
-  const fetchMyCourseBadges = async (): Promise<void> => {
+  const fetchMyCourseBadges = React.useCallback(async (): Promise<void> => {
     if (eduquestUser) {
       try {
         const response = await getUserCourseBadgesByUser(eduquestUser.id.toString());
@@ -46,9 +46,9 @@ export default function Page(): React.JSX.Element {
         setLoadingCourseBadges(false);
       }
     }
-  }
+  }, [eduquestUser]);
 
-  const fetchMyQuestBadges = async (): Promise<void> => {
+  const fetchMyQuestBadges = React.useCallback(async (): Promise<void> => {
     if (eduquestUser) {
       try {
         const response = await getUserQuestBadgesByUser(eduquestUser.id.toString());
@@ -59,7 +59,7 @@ export default function Page(): React.JSX.Element {
         setLoadingQuestBadges(false);
       }
     }
-  }
+  }, [eduquestUser]);
 
   React.useEffect(() => {
     const fetchData = async (): Promise<void> => {
@@ -70,7 +70,7 @@ export default function Page(): React.JSX.Element {
     fetchData().catch((error: unknown) => {
       logger.error('Failed to fetch data', error);
     });
-  }, []);
+  }, [fetchMyCourseBadges, fetchMyQuestBadges]);
 
 
   return (

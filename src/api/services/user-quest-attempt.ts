@@ -2,9 +2,10 @@ import apiService from "@/api/api-service";
 import type {
   UserQuestAttempt,
   // UserQuestAttemptMultipleUpdateForm,
-  UserQuestAttemptNewForm, UserQuestAttemptUpdateForm
+  UserQuestAttemptNewForm,
+  UserQuestAttemptUpdateForm,
+  UserQuestAttemptBonusResponse
 } from "@/types/user-quest-attempt";
-import type { UserQuestAttemptBonusResponse } from "@/types/user-quest-attempt";
 
 export const getUserQuestAttempts = async (): Promise<UserQuestAttempt[]> => {
   const response = await apiService.get<UserQuestAttempt[]>('/api/user-quest-attempts/');

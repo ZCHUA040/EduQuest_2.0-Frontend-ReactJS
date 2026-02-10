@@ -8,6 +8,7 @@ import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import Divider from '@mui/material/Divider';
 import FormControl from '@mui/material/FormControl';
+import FormHelperText from '@mui/material/FormHelperText';
 import FormLabel from '@mui/material/FormLabel';
 import Grid from '@mui/material/Unstable_Grid2';
 import {logger} from "@/lib/default-logger";
@@ -36,6 +37,7 @@ export function CourseNewGroupForm({ onFormSubmitSuccess, courseId }: CourseGrou
   const [isInstructorsLoading, setIsInstructorsLoading] = React.useState<boolean>(true);
   const [selectedInstructor, setSelectedInstructor] = React.useState<EduquestUserSummary | null>(null);
   const [submitStatus, setSubmitStatus] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [formErrors, setFormErrors] = React.useState<Record<string, string>>({});
 
   const fetchInstructors = async (): Promise<void> => {
     try {
@@ -50,31 +52,66 @@ export function CourseNewGroupForm({ onFormSubmitSuccess, courseId }: CourseGrou
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    if (
-      selectedInstructor &&
-      courseGroupNameRef.current &&
-      courseGroupInstructorIdRef.current &&
-      courseGroupSessionDayRef.current &&
-      courseGroupSessionTimeRef.current
-    ) {
+    const nextErrors: Record<string, string> = {};
+    const groupName = courseGroupNameRef.current?.value.trim() || '';
+    const sessionDay = courseGroupSessionDayRef.current?.value.trim() || '';
+    const sessionTime = courseGroupSessionTimeRef.current?.value.trim() || '';
+
+    if (!groupName) {
+      nextErrors.groupName = 'Group Name is required.';
+    }
+    if (!sessionDay) {
+      nextErrors.sessionDay = 'Group Session Day is required.';
+    }
+    if (!sessionTime) {
+      nextErrors.sessionTime = 'Group Session Time is required.';
+    }
+    if (!selectedInstructor) {
+      nextErrors.instructor = 'Instructor is required.';
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFormErrors(nextErrors);
+      setSubmitStatus({ type: 'error', message: 'Please complete all required fields.' });
+      return;
+    }
+
+    setFormErrors({});
+
+    if (selectedInstructor && courseGroupNameRef.current && courseGroupInstructorIdRef.current && courseGroupSessionDayRef.current && courseGroupSessionTimeRef.current) {
       const newCourseGroup: CourseGroupNewForm = {
-        name: courseGroupNameRef.current.value,
+        name: groupName,
         instructor_id: selectedInstructor.id,
-        session_day: courseGroupSessionDayRef.current.value, // Ensure this matches the interface
-        session_time: courseGroupSessionTimeRef.current.value,
+        session_day: sessionDay,
+        session_time: sessionTime,
         course_id: courseId as unknown as number
       };
       try {
         await createCourseGroup(newCourseGroup);
+        if (courseGroupNameRef.current) {
+          courseGroupNameRef.current.value = '';
+        }
+        if (courseGroupSessionTimeRef.current) {
+          courseGroupSessionTimeRef.current.value = '09:00 AM - 10:00 AM';
+        }
+        if (courseGroupSessionDayRef.current) {
+          courseGroupSessionDayRef.current.value = 'Monday';
+        }
+        if (courseGroupInstructorIdRef.current && instructors?.length) {
+          courseGroupInstructorIdRef.current.value = instructors[0].username;
+        }
+        if (instructors?.length) {
+          setSelectedInstructor(instructors[0]);
+        }
         onFormSubmitSuccess();
         setSubmitStatus({type: 'success', message: 'Course Group created successfully'});
       } catch (error: unknown) {
         logger.error('Failed to create Course Group', error);
-        setSubmitStatus({ type: 'error', message: 'Failed to create Course Group' });
+        setSubmitStatus({ type: 'error', message: 'Failed to create Course Group. Please try again.' });
       }
     } else {
       logger.error('One or more form fields are missing.');
-      setSubmitStatus({ type: 'error', message: 'All fields are required.' });
+      setSubmitStatus({ type: 'error', message: 'Please complete all required fields.' });
     }
   }
 
@@ -95,6 +132,14 @@ export function CourseNewGroupForm({ onFormSubmitSuccess, courseId }: CourseGrou
     }
   }, [instructors]);
 
+  const handleInstructorChange = (username: string): void => {
+    const instructor = instructors?.find((item) => item.username === username) ?? null;
+    setSelectedInstructor(instructor);
+    if (formErrors.instructor) {
+      setFormErrors((prevState) => ({ ...prevState, instructor: '' }));
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit}>
       <Card sx={{ marginBottom: 2}}>
@@ -103,7 +148,7 @@ export function CourseNewGroupForm({ onFormSubmitSuccess, courseId }: CourseGrou
         <CardContent>
           <Grid container spacing={3}>
             <Grid md={6} xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.groupName)}>
                 <FormLabel htmlFor="group-name">Group Name</FormLabel>
                 <TextField
                   id="group-name" // Ensure this matches htmlFor
@@ -112,11 +157,18 @@ export function CourseNewGroupForm({ onFormSubmitSuccess, courseId }: CourseGrou
                   variant='outlined'
                   size='small'
                   required
+                  error={Boolean(formErrors.groupName)}
+                  helperText={formErrors.groupName || ''}
+                  onChange={() => {
+                    if (formErrors.groupName) {
+                      setFormErrors((prevState) => ({ ...prevState, groupName: '' }));
+                    }
+                  }}
                 />
               </FormControl>
             </Grid>
             <Grid md={6} xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.sessionDay)}>
                 <FormLabel htmlFor="group-session-day">Group Session Day</FormLabel>
                 <Select
                   id="group-session-day"
@@ -125,6 +177,11 @@ export function CourseNewGroupForm({ onFormSubmitSuccess, courseId }: CourseGrou
                   name="group-session-day"
                   size="small"
                   required
+                  onChange={() => {
+                    if (formErrors.sessionDay) {
+                      setFormErrors((prevState) => ({ ...prevState, sessionDay: '' }));
+                    }
+                  }}
                 >
                   <MenuItem value="Monday">Monday</MenuItem>
                   <MenuItem value="Tuesday">Tuesday</MenuItem>
@@ -134,10 +191,11 @@ export function CourseNewGroupForm({ onFormSubmitSuccess, courseId }: CourseGrou
                   <MenuItem value="Saturday">Saturday</MenuItem>
                   <MenuItem value="Sunday">Sunday</MenuItem>
                 </Select>
+                {formErrors.sessionDay ? <FormHelperText>{formErrors.sessionDay}</FormHelperText> : null}
               </FormControl>
             </Grid>
             <Grid md={6} xs={12}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required error={Boolean(formErrors.sessionTime)}>
                 <FormLabel htmlFor="group-session-time">Group Session Time</FormLabel>
                 <TextField
                   id="group-session-time"
@@ -147,13 +205,20 @@ export function CourseNewGroupForm({ onFormSubmitSuccess, courseId }: CourseGrou
                   variant='outlined'
                   size='small'
                   required
+                  error={Boolean(formErrors.sessionTime)}
+                  helperText={formErrors.sessionTime || ''}
+                  onChange={() => {
+                    if (formErrors.sessionTime) {
+                      setFormErrors((prevState) => ({ ...prevState, sessionTime: '' }));
+                    }
+                  }}
                 />
               </FormControl>
             </Grid>
           {isInstructorsLoading ? <Skeleton variant="rectangular" height={50}/>
             : instructors ?
               <Grid md={6} xs={12}>
-                <FormControl fullWidth required>
+                <FormControl fullWidth required error={Boolean(formErrors.instructor)}>
                   <FormLabel htmlFor="instructor-id">Instructor</FormLabel>
                   <Select
                     id="instructor-id"
@@ -164,6 +229,7 @@ export function CourseNewGroupForm({ onFormSubmitSuccess, courseId }: CourseGrou
                     type="number"
                     size="small"
                     required
+                    onChange={(event) => { handleInstructorChange(String(event.target.value)); }}
                   >
                     {instructors.map((option) => (
                       <MenuItem key={option.id} value={option.username}>
@@ -171,6 +237,7 @@ export function CourseNewGroupForm({ onFormSubmitSuccess, courseId }: CourseGrou
                       </MenuItem>
                     ))}
                   </Select>
+                  {formErrors.instructor ? <FormHelperText>{formErrors.instructor}</FormHelperText> : null}
                 </FormControl>
               </Grid> : null}
 

@@ -35,13 +35,13 @@ export function CourseProgressCard({ userCourseProgression = [], sx, handleOnCli
   const isXs = useMediaQuery(theme.breakpoints.down('sm'));
   const itemsPerPage = isXs ? 1 : 2;
 
-  const handleNextPage = () => {
+  const handleNextPage = (): void => {
     if (page < Math.ceil(userCourseProgression.length / itemsPerPage) - 1) {
       setPage(page + 1);
     }
   };
 
-  const handlePreviousPage = () => {
+  const handlePreviousPage = (): void => {
     if (page > 0) {
       setPage(page - 1);
     }

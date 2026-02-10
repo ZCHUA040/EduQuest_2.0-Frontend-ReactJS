@@ -228,6 +228,7 @@ export function CourseEditForm({ setSubmitStatus, course, toggleForm, onUpdateSu
                   variant='outlined'
                   size='small'
                   inputRef={courseCodeRef}
+                  required
                 />
               </FormControl>
             </Grid>
@@ -240,6 +241,7 @@ export function CourseEditForm({ setSubmitStatus, course, toggleForm, onUpdateSu
                   variant='outlined'
                   size='small'
                   inputRef={courseNameRef}
+                  required
                 />
               </FormControl>
             </Grid>
@@ -257,7 +259,7 @@ export function CourseEditForm({ setSubmitStatus, course, toggleForm, onUpdateSu
                     <InfoIcon fontSize="var(--icon-fontSize-sm)" style={{ marginBottom: '8px', cursor: 'pointer', color: 'var(--mui-palette-neutral-500)' }} />
                   </Tooltip>
                 </Stack>
-                <Select defaultValue={course.type} label="Type" inputRef={courseTypeRef} name="type" size="small">
+                <Select defaultValue={course.type} label="Type" inputRef={courseTypeRef} name="type" size="small" required>
                   <MenuItem value="System-enroll"><Chip variant="outlined" label="System-enroll" color="primary" size="small"/></MenuItem>
                   <MenuItem value="Self-enroll"><Chip variant="outlined" label="Self-enroll" color="success" size="small"/></MenuItem>
                   <MenuItem value="Private"><Chip variant="outlined" label="Private" color="secondary" size="small"/></MenuItem>
@@ -267,7 +269,7 @@ export function CourseEditForm({ setSubmitStatus, course, toggleForm, onUpdateSu
             <Grid md={6} xs={12}>
               <FormControl fullWidth required>
                 <FormLabel htmlFor="course status">Course Status</FormLabel>
-                <Select defaultValue={course.status} label="Status" inputRef={courseStatusRef} name="status" size="small">
+                <Select defaultValue={course.status} label="Status" inputRef={courseStatusRef} name="status" size="small" required>
                   <MenuItem value="Active"><Chip variant="outlined" label="Active" color="success" size="small"/></MenuItem>
                   <MenuItem value="Expired"><Chip variant="outlined" label="Expired" color="secondary" size="small"/></MenuItem>
                 </Select>
@@ -284,6 +286,7 @@ export function CourseEditForm({ setSubmitStatus, course, toggleForm, onUpdateSu
                   multiline
                   size="medium"
                   rows={3}
+                  required
                 />
               </FormControl>
             </Grid>
@@ -345,7 +348,7 @@ export function CourseEditForm({ setSubmitStatus, course, toggleForm, onUpdateSu
               <FormControl required>
                 <FormLabel htmlFor="term id">Term ID</FormLabel>
                 <Select defaultValue={course.term.id} onChange={handleTermChange} inputRef={courseTermIdRef}
-                        label="Term ID" variant="outlined" type="number" size="small">
+                        label="Term ID" variant="outlined" type="number" size="small" required>
                   {terms.map((option) => (
                     <MenuItem key={option.id} value={option.id}>
                       {option.id} - AY{option.academic_year.start_year}-{option.academic_year.end_year} {option.name}
@@ -392,7 +395,7 @@ export function CourseEditForm({ setSubmitStatus, course, toggleForm, onUpdateSu
                   <FormControl required>
                     <FormLabel htmlFor="image id">Thumbnail ID</FormLabel>
                     <Select defaultValue={course.image.id} onChange={handleImageChange} inputRef={courseImageIdRef}
-                            label="Thumbnail ID" variant="outlined" type="number" size="small">
+                            label="Thumbnail ID" variant="outlined" type="number" size="small" required>
                       {images.map((option) => (
                         <MenuItem key={option.id} value={option.id}>
                           {option.id} - {option.name}

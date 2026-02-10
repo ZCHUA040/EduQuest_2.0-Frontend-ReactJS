@@ -1,3 +1,4 @@
+/* eslint-disable react/no-array-index-key -- dynamic lists lack stable ids during authoring */
 import * as React from 'react';
 import { useState } from 'react';
 import Box from '@mui/material/Box';

@@ -127,7 +127,10 @@ export default function QuestEditForm( {quest, toggleForm, setSubmitStatus, onUp
   const handleDeleteQuest = async (): Promise<void> => {
     try {
       await deleteQuest(quest.id.toString());
-      router.push(paths.dashboard.quest.all as string);
+      const redirectPath = quest.type === 'Private'
+        ? paths.dashboard.generator.quest
+        : paths.dashboard.quest.all;
+      router.push(redirectPath as string);
     } catch (error: unknown) {
         logger.error('Failed to delete the quest', error);
         setSubmitStatus({type: 'error', message: 'Delete Failed. Please try again.'});

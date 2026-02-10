@@ -36,7 +36,24 @@ export interface FeedbackPayload {
   question_feedback?: Record<string, unknown>;
 }
 
-const buildAttemptPayload = (attemptId: string, userId: number, answerAttempts: UserAnswerAttempt[]) => {
+interface AttemptPayload {
+  student_id: number;
+  quest_id: number;
+  answers: {
+    question_id: number;
+    question_text: string;
+    cognitive_level: string;
+    topic: string;
+    selected_answer: string;
+    is_selected: boolean;
+    answer_is_correct: boolean;
+    is_correct: boolean;
+    correct_answer: string;
+    explanation: string;
+  }[];
+}
+
+const buildAttemptPayload = (attemptId: string, userId: number, answerAttempts: UserAnswerAttempt[]): AttemptPayload => {
   if (!answerAttempts.length) {
     throw new Error('No answers found for this attempt.');
   }

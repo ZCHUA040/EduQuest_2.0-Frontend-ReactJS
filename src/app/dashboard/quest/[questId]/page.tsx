@@ -55,7 +55,7 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
   const [quest, setQuest] = React.useState<Quest>();
   const [userQuestAttempts, setUserQuestAttempts] = React.useState<UserQuestAttempt[]>();
   const [userAnswerAttempts, setUserAnswerAttempts] = React.useState<UserAnswerAttempt[]>([]);
-  const [userAnswerAttemptIdAndStatus, setUserAnswerAttemptIdAndStatus] = React.useState<{ attemptId: string; submitted: boolean } | null>(null);
+  const [userAnswerAttemptIdAndStatus, setUserAnswerAttemptIdAndStatus] = React.useState<{ attemptId: string; submitted: boolean; bonusAwarded: boolean } | null>(null);
 
   const [showAnswerAttemptsMode, setShowAnswerAttemptsMode] = React.useState(false);
   const [submitStatus, setSubmitStatus] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -74,10 +74,10 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
   const [showSubtopicDetails, setShowSubtopicDetails] = React.useState<Record<number, boolean>>({});
   const [showStudyTips, setShowStudyTips] = React.useState(false);
 
-  const handleViewAnswerAttempts = async ({ attemptId, submitted }: { attemptId: string; submitted: boolean }): Promise<void> => {
+  const handleViewAnswerAttempts = async ({ attemptId, submitted, bonusAwarded }: { attemptId: string; submitted: boolean; bonusAwarded: boolean }): Promise<void> => {
     try {
       setLoadingUserAnswerAttempts(true);
-      setUserAnswerAttemptIdAndStatus({ attemptId, submitted });
+      setUserAnswerAttemptIdAndStatus({ attemptId, submitted, bonusAwarded });
       toggleAnswerAttemptMode();
       // Fetch the selected user answer attempts
       const response = await getUserAnswerAttemptByUserQuestAttempt(attemptId);
@@ -138,7 +138,7 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
     await handleStatusChange(status);
   };
 
-  const fetchQuest = async (): Promise<string | undefined> => {
+  const fetchQuest = React.useCallback(async (): Promise<string | undefined> => {
     try {
       const response = await getQuest(params.questId);
       setQuest(response);
@@ -149,9 +149,9 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
     } finally {
       setLoadingQuest(false);
     }
-  }
+  }, [params.questId]);
 
-  const fetchEnrollment = async (userId: string, courseId: string): Promise<void> => {
+  const fetchEnrollment = React.useCallback(async (userId: string, courseId: string): Promise<void> => {
     try {
       const response = await getUserCourseGroupEnrollmentsByCourseAndUser(courseId, userId);
       setCourseEnrollments(response);
@@ -161,9 +161,9 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
     } finally {
       setLoadingCourseEnrollments(false);
     }
-  }
+  }, []);
 
-  const fetchMyQuestAttempts = async (): Promise<void> => {
+  const fetchMyQuestAttempts = React.useCallback(async (): Promise<void> => {
     if (eduquestUser) {
       try {
         const response = await getUserQuestAttemptsByUserAndQuest(eduquestUser.id.toString(), params.questId);
@@ -174,7 +174,7 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
         setLoadingQuestAttemptTable(false);
       }
     }
-  }
+  }, [eduquestUser, params.questId]);
 
   const onAnswerChange = (attemptId: number, answerId: number, isChecked: boolean): void => {
     setUserAnswerAttempts(prevData =>
@@ -214,7 +214,7 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
         await fetchMyQuestAttempts();
 
         // Redirect to the new attempt component
-        await handleViewAnswerAttempts({ attemptId: userQuestAttempt.id.toString(), submitted: false });
+        await handleViewAnswerAttempts({ attemptId: userQuestAttempt.id.toString(), submitted: false, bonusAwarded: false });
       } catch (error: unknown) {
         logger.error('Failed to create a new attempt', error);
         setSubmitStatus({type: 'error', message: 'Failed to create a new attempt. Please try again.'});
@@ -251,7 +251,7 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
     fetchData().catch((error: unknown) => {
       logger.error('Failed to fetch data', error);
     });
-  }, []);
+  }, [eduquestUser, fetchQuest, fetchEnrollment, fetchMyQuestAttempts]);
 
   const latestSubmittedAttempt = React.useMemo(() => {
     return userQuestAttempts?.find((attempt) => attempt.submitted) || null;
@@ -353,6 +353,7 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
               data={userAnswerAttempts}
               userQuestAttemptId={userAnswerAttemptIdAndStatus.attemptId}
               submitted={userAnswerAttemptIdAndStatus.submitted}
+              bonusAwarded={userAnswerAttemptIdAndStatus.bonusAwarded}
               onAnswerChange={onAnswerChange}
               onHintUsed={onHintUsed}
               onAnswerSubmit={handleAnswerSubmit}
@@ -645,6 +646,31 @@ export default function Page({ params }: { params: { questId: string } }) : Reac
               <Stack direction="row" spacing={1} alignItems="center">
                 <SparkleIcon size={18} />
                 <Typography variant="h6">AI Tutor Feedback</Typography>
+                <Tooltip
+                  placement="right"
+                  title={
+                    <Typography variant="inherit">
+                      AI feedback estimates your current understanding using Bloom&apos;s Taxonomy based on the question and submitted answers.
+                      <br />
+                      <br />
+                      <strong>Bloom levels:</strong>
+                      <br />
+                      1. Remember - Recall facts and definitions
+                      <br />
+                      2. Understand - Explain ideas in your own words
+                      <br />
+                      3. Apply - Use knowledge in a new situation
+                      <br />
+                      4. Analyze - Break down and compare concepts
+                      <br />
+                      5. Evaluate - Judge with justification
+                      <br />
+                      6. Create - Produce original solutions or ideas
+                    </Typography>
+                  }
+                >
+                  <InfoIcon style={{ cursor: 'pointer', color: 'var(--mui-palette-neutral-500)' }} />
+                </Tooltip>
               </Stack>
             }
             subheader={

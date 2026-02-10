@@ -39,8 +39,8 @@ export function BadgeCard({ badges = [] }: BadgeCardProps): React.JSX.Element {
                   </Typography>
                   <Typography variant="overline" color="text.secondary">Condition</Typography>
                   <Stack component="ul" spacing={1} style={{ listStyleType: 'none', paddingLeft: 0 }}>
-                    {badge.condition.split(',').map((condition, index) => (
-                      <li key={index} style={{ display: 'flex', alignItems: 'center' }}>
+                    {badge.condition.split(',').map((condition) => (
+                      <li key={`${String(badge.id)}-${condition.trim()}`} style={{ display: 'flex', alignItems: 'center' }}>
                         <CheckCircleIcon size={22} style={{ flexShrink: 0, marginRight: '8px' }} color="#66bb6a" />
                         <Typography variant="body2">{condition.trim()}</Typography>
                       </li>

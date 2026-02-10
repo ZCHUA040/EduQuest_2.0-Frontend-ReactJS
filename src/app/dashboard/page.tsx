@@ -25,9 +25,9 @@ import {LiveIndicator} from "@/components/dashboard/overview/chart/live-indicato
 import Typography from "@mui/material/Typography";
 import {QuestScoresCard} from "@/components/dashboard/overview/quest-scores-card";
 import {SkeletonMyQuestScores} from "@/components/dashboard/skeleton/analytics/skeleton-my-quest-scores";
-import {AnalyticsPartThree} from "@/types/analytics/analytics-three";
-import {AnalyticsPartTwo, UserCourseProgression} from "@/types/analytics/analytics-two";
-import {AnalyticsPartOne} from "@/types/analytics/analytics-one";
+import type { AnalyticsPartThree } from "@/types/analytics/analytics-three";
+import type { AnalyticsPartTwo, UserCourseProgression } from "@/types/analytics/analytics-two";
+import type { AnalyticsPartOne } from "@/types/analytics/analytics-one";
 import {getAnalyticsPartOne, getAnalyticsPartThree, getAnalyticsPartTwo} from "@/api/services/analytics";
 
 
@@ -64,7 +64,7 @@ export default function Page(): React.JSX.Element {
   });
 
 
-  const fetchAnalyticsPartOne = async (): Promise<void> => {
+  const fetchAnalyticsPartOne = React.useCallback(async (): Promise<void> => {
     try {
       const response = await getAnalyticsPartOne()
       // logger.debug('Analytics Part One', response);
@@ -74,9 +74,9 @@ export default function Page(): React.JSX.Element {
     } finally {
       setAnalyticsPartOneLoading(false);
     }
-  }
+  }, []);
 
-  const fetchAnalyticsPartTwo = async (): Promise<void> => {
+  const fetchAnalyticsPartTwo = React.useCallback(async (): Promise<void> => {
     if (eduquestUser) {
       try {
         const response = await getAnalyticsPartTwo(eduquestUser.id, 'both');
@@ -88,9 +88,9 @@ export default function Page(): React.JSX.Element {
         setAnalyticsPartTwoLoading(false);
       }
     }
-  }
+  }, [eduquestUser]);
 
-  const fetchAnalyticsPartThree = async (): Promise<void> => {
+  const fetchAnalyticsPartThree = React.useCallback(async (): Promise<void> => {
     try {
       const response = await getAnalyticsPartThree()
       // logger.debug('Analytics Part Three', response);
@@ -100,11 +100,11 @@ export default function Page(): React.JSX.Element {
     } finally {
       setAnalyticsPartThreeLoading(false);
     }
-  }
+  }, []);
 
 
 
-  const handleOnClick = (aUserCourseProgression: UserCourseProgression ) => {
+  const handleOnClick = (aUserCourseProgression: UserCourseProgression ): void => {
     setUserCourseProgression(aUserCourseProgression);
   }
 
@@ -122,7 +122,7 @@ export default function Page(): React.JSX.Element {
     const intervalId = setInterval(fetchData, 60000); // Fetch data every 60 seconds
 
     return () => { clearInterval(intervalId); }; // Clear interval on component unmount
-  }, []);
+  }, [fetchAnalyticsPartOne, fetchAnalyticsPartTwo, fetchAnalyticsPartThree]);
 
   // React.useEffect(() => {
   //   logger.debug('Analytics Part Three', analyticsPartThree);

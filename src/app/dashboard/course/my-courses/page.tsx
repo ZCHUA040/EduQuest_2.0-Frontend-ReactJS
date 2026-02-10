@@ -15,7 +15,7 @@ export default function Page(): React.JSX.Element {
   const [courses, setCourses] = React.useState<Course[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  const fetchMyCourses = async (): Promise<void> => {
+  const fetchMyCourses = React.useCallback(async (): Promise<void> => {
     if (eduquestUser) {
       try {
         const response = await getMyCourses(eduquestUser.id.toString());
@@ -26,7 +26,7 @@ export default function Page(): React.JSX.Element {
         setLoading(false);
       }
     }
-  }
+  }, [eduquestUser]);
 
   React.useEffect(() => {
     const fetchData = async (): Promise<void> => {
@@ -36,7 +36,7 @@ export default function Page(): React.JSX.Element {
     fetchData().catch((error: unknown) => {
       logger.error('Failed to fetch data', error);
     });
-  }, []);
+  }, [fetchMyCourses]);
 
 
   return (
