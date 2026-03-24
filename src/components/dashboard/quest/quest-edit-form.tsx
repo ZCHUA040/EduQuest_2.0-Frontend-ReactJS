@@ -3,6 +3,7 @@ import * as React from 'react';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
 import { XCircle as XCircleIcon } from '@phosphor-icons/react/dist/ssr/XCircle';
 import { logger } from '@/lib/default-logger'
 import type { Quest } from '@/types/quest';
@@ -12,6 +13,8 @@ import Divider from "@mui/material/Divider";
 import CardContent from "@mui/material/CardContent";
 import Grid from "@mui/material/Unstable_Grid2";
 import FormControl from "@mui/material/FormControl";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Checkbox from "@mui/material/Checkbox";
 import Select, {type SelectChangeEvent} from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import Chip from "@mui/material/Chip";
@@ -32,6 +35,10 @@ import {type CourseGroup} from "@/types/course-group";
 import {getNonPrivateCourseGroups} from "@/api/services/course-group";
 import {deleteQuest, updateQuest} from "@/api/services/quest";
 import {User as UserIcon} from "@phosphor-icons/react/dist/ssr/User";
+import {getQuestionsByQuest} from "@/api/services/question";
+import type {Question} from "@/types/question";
+import {updateMultipleAnswers} from "@/api/services/answer";
+import {regradeUserQuestAttemptsByQuest} from "@/api/services/user-quest-attempt";
 
 interface QuestEditFormProps {
   quest: Quest
@@ -50,6 +57,10 @@ export default function QuestEditForm( {quest, toggleForm, setSubmitStatus, onUp
 
   const [selectedCourseGroup, setSelectedCourseGroup] = React.useState<CourseGroup | null>(null);
   const [selectedImage, setSelectedImage] = React.useState<Image | null>(null);
+  const [importQuestions, setImportQuestions] = React.useState<Question[]>([]);
+  const [loadingImportQuestions, setLoadingImportQuestions] = React.useState(false);
+  const [answerStatus, setAnswerStatus] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [touchedQuestionIds, setTouchedQuestionIds] = React.useState<Set<number>>(new Set());
 
   const questTypeRef = React.useRef<HTMLInputElement>(null);
   const questNameRef = React.useRef<HTMLInputElement>(null);
@@ -147,6 +158,99 @@ export default function QuestEditForm( {quest, toggleForm, setSubmitStatus, onUp
       logger.error('Failed to fetch data', error);
     });
   }, []);
+
+  const isImportedQuest = quest.type?.toLowerCase() === 'wooclap' || quest.type?.toLowerCase() === 'kahoot!';
+
+  React.useEffect(() => {
+    const fetchQuestions = async (): Promise<void> => {
+      if (!isImportedQuest) {
+        return;
+      }
+      try {
+        setLoadingImportQuestions(true);
+        const response = await getQuestionsByQuest(quest.id.toString());
+        const sorted = response
+          .slice()
+          .sort((a, b) => a.number - b.number)
+          .map((question) => ({
+            ...question,
+            answers: question.answers.slice().sort((a, b) => a.id - b.id)
+          }));
+        setImportQuestions(sorted);
+      } catch (error: unknown) {
+        logger.error('Failed to fetch quest questions', error);
+      } finally {
+        setLoadingImportQuestions(false);
+      }
+    };
+
+    void fetchQuestions();
+  }, [isImportedQuest, quest.id]);
+
+  const handleAnswerChange = (
+    questionId: number,
+    answerId: number,
+    text: string,
+    reason: string | null,
+    isCorrect: boolean
+  ): void => {
+    setTouchedQuestionIds((prev) => new Set(prev).add(questionId));
+    const newQuestions = importQuestions.map((question) => {
+      if (question.id === questionId) {
+        const allowMultiple = question.text.toLowerCase().includes('select all that apply');
+        return {
+          ...question,
+          answers: question.answers.map((answer) => {
+            if (answer.id === answerId) {
+              return { ...answer, is_correct: isCorrect };
+            }
+            if (isCorrect && !allowMultiple) {
+              return { ...answer, is_correct: false };
+            }
+            return answer;
+          }),
+        };
+      }
+      return question;
+    });
+    setImportQuestions(newQuestions);
+
+    // Changed answers are derived from importQuestions on save.
+  };
+
+  const handleSaveCorrectAnswers = async (): Promise<void> => {
+    if (touchedQuestionIds.size === 0) {
+      setAnswerStatus({ type: 'error', message: 'No changes to save.' });
+      return;
+    }
+
+    try {
+      const payload = importQuestions
+        .filter((question) => touchedQuestionIds.has(question.id))
+        .flatMap((question) => question.answers.map((answer) => ({
+          id: answer.id,
+          text: answer.text,
+          is_correct: answer.is_correct,
+          reason: answer.reason ?? null
+        })));
+      await updateMultipleAnswers(payload);
+      await regradeUserQuestAttemptsByQuest(quest.id.toString());
+      const refreshedQuestions = await getQuestionsByQuest(quest.id.toString());
+      const sorted = refreshedQuestions
+        .slice()
+        .sort((a, b) => a.number - b.number)
+        .map((question) => ({
+          ...question,
+          answers: question.answers.slice().sort((a, b) => a.id - b.id)
+        }));
+      setImportQuestions(sorted);
+      setAnswerStatus({ type: 'success', message: 'Correct answers updated and attempts regraded.' });
+      setTouchedQuestionIds(new Set());
+    } catch (error: unknown) {
+      logger.error('Failed to update correct answers', error);
+      setAnswerStatus({ type: 'error', message: 'Failed to update correct answers.' });
+    }
+  };
 
 
   return (
@@ -389,16 +493,78 @@ export default function QuestEditForm( {quest, toggleForm, setSubmitStatus, onUp
               </Grid> : null}
 
 
+            {eduquestUser?.is_staff && isImportedQuest ? (
+              <>
+                <Divider sx={{ my: 4 }} />
+                <Typography sx={{ my: 3 }} variant="h6">Correct Answers (Imported Quest)</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Update the correct answers and regrade all student attempts.
+                </Typography>
+                {loadingImportQuestions ? (
+                  <Typography variant="body2" color="text.secondary">Loading questions...</Typography>
+                ) : importQuestions.length > 0 ? (
+                  <Grid container spacing={3}>
+                    {importQuestions.map((question) => (
+                      <Grid container key={question.id} spacing={1} sx={{ width: '100%' }}>
+                        <Grid xs={12}>
+                          <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                            {question.number}. {question.text}
+                          </Typography>
+                        </Grid>
+                        {question.answers.map((answer) => (
+                          <Grid key={answer.id} md={6} xs={12}>
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  checked={answer.is_correct}
+                                  onChange={(event) => {
+                                    handleAnswerChange(
+                                      question.id,
+                                      answer.id,
+                                      answer.text,
+                                      answer.reason ?? null,
+                                      event.target.checked
+                                    );
+                                  }}
+                                />
+                              }
+                              label={answer.text}
+                            />
+                          </Grid>
+                        ))}
+                      </Grid>
+                    ))}
+                  </Grid>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">No questions found for this quest.</Typography>
+                )}
+              </>
+            ) : null}
+
 
           </CardContent>
 
           <CardActions sx={{justifyContent: 'space-between'}}>
             <Button startIcon={<TrashIcon/>} color="error" onClick={handleDeleteQuest}>Delete Quest</Button>
+            {eduquestUser?.is_staff && isImportedQuest ? (
+              <Button
+                variant="outlined"
+                onClick={() => { void handleSaveCorrectAnswers(); }}
+                disabled={touchedQuestionIds.size === 0}
+              >
+                Save Correct Answers & Regrade
+              </Button>
+            ) : null}
             <Button startIcon={<FloppyDiskIcon/>} type="submit" variant="contained">Update Quest</Button>
           </CardActions>
         </Card>
        : null }
 
+      {answerStatus ? (
+        <Alert severity={answerStatus.type} sx={{ mt: 2 }}>
+          {answerStatus.message}
+        </Alert>
+      ) : null}
     </form>
   );
 }

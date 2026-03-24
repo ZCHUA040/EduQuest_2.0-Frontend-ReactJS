@@ -35,7 +35,6 @@ authApi.interceptors.request.use(
 );
 
 class AuthClient {
-
   /**
    * Initiates the sign-in process using MSAL.
    */

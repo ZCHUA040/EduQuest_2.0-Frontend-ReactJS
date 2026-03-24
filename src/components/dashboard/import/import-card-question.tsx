@@ -19,6 +19,7 @@ import { updateMultipleAnswers } from "@/api/services/answer";
 import { type Quest } from "@/types/quest";
 import {getUserAnswerAttemptByQuest} from "@/api/services/user-answer-attempt";
 import {type UserAnswerAttempt} from "@/types/user-answer-attempt";
+import { regradeUserQuestAttemptsByQuest } from "@/api/services/user-quest-attempt";
 
 interface ImportCardQuestionProps {
   questions: Question[];
@@ -211,6 +212,7 @@ export function ImportCardQuestion({ questions, onAggregationComplete, newQuestI
       setLoadingState(LoadingState.UpdatingQuestions);
       const response = await updateMultipleAnswers(changedAnswers);
       logger.debug('Update Success:', response);
+      await regradeUserQuestAttemptsByQuest(newQuestId.toString());
 
       // Optionally, reset the changedAnswers state after successful update
       setChangedAnswers([]);

@@ -29,11 +29,12 @@ import type { AnalyticsPartThree } from "@/types/analytics/analytics-three";
 import type { AnalyticsPartTwo, UserCourseProgression } from "@/types/analytics/analytics-two";
 import type { AnalyticsPartOne } from "@/types/analytics/analytics-one";
 import {getAnalyticsPartOne, getAnalyticsPartThree, getAnalyticsPartTwo} from "@/api/services/analytics";
+import { DailyCheckInTask } from "@/components/dashboard/overview/daily-check-in-task";
 
 
 
 export default function Page(): React.JSX.Element {
-  const { eduquestUser } = useUser();
+  const { eduquestUser, checkSession } = useUser();
   const [userCourseProgression, setUserCourseProgression] = React.useState<UserCourseProgression | null>(null);
   const [analyticsPartOneLoading, setAnalyticsPartOneLoading] = React.useState(true);
   const [analyticsPartTwoLoading, setAnalyticsPartTwoLoading] = React.useState(true);
@@ -186,6 +187,18 @@ export default function Page(): React.JSX.Element {
                 diff={ null } />
             )
            : null }
+        </Grid>
+        <Grid lg={4} md={6} xs={12}>
+          {eduquestUser ? (
+            <DailyCheckInTask
+              eduquestUser={eduquestUser}
+              onCheckedIn={async () => {
+                if (checkSession) {
+                  await checkSession();
+                }
+              }}
+            />
+          ) : null}
         </Grid>
 
         <Grid lg={5} md={6} xs={12}>

@@ -12,17 +12,27 @@ import FormControl from '@mui/material/FormControl';
 import FormHelperText from '@mui/material/FormHelperText';
 import FormLabel from '@mui/material/FormLabel';
 import Grid from '@mui/material/Unstable_Grid2';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
 import { XCircle as XCircleIcon } from "@phosphor-icons/react/dist/ssr/XCircle";
 import { FloppyDisk as FloppyDiskIcon } from "@phosphor-icons/react/dist/ssr/FloppyDisk";
 import { logger } from "@/lib/default-logger";
 import { Trash as TrashIcon } from "@phosphor-icons/react/dist/ssr/Trash";
-import { getAdminEduquestUsers } from "@/api/services/eduquest-user";
+import { getAdminEduquestUsers, getStudentEduquestUsers } from "@/api/services/eduquest-user";
 import { updateCourseGroup } from "@/api/services/course-group";
 import type { CourseGroup, CourseGroupUpdateForm } from "@/types/course-group";
 import type { EduquestUser } from "@/types/eduquest-user";
+import {
+  createUserCourseGroupEnrollment,
+  deleteUserCourseGroupEnrollment,
+  getUserCourseGroupEnrollmentsByCourseGroup
+} from "@/api/services/user-course-group-enrollment";
+import type { UserCourseGroupEnrollment } from "@/types/user-course-group-enrollment";
 
 interface CourseGroupEditFormProps {
   courseGroup: CourseGroup;
@@ -33,7 +43,11 @@ interface CourseGroupEditFormProps {
 
 export function CourseGroupEditForm({ courseGroup, onCancel, onSuccess, onDelete }: CourseGroupEditFormProps): React.JSX.Element {
   const [instructors, setInstructors] = React.useState<EduquestUser[]>([]);
+  const [students, setStudents] = React.useState<EduquestUser[]>([]);
+  const [enrolledStudents, setEnrolledStudents] = React.useState<UserCourseGroupEnrollment[]>([]);
   const [loadingInstructors, setLoadingInstructors] = React.useState(true);
+  const [loadingStudents, setLoadingStudents] = React.useState(true);
+  const [selectedStudentId, setSelectedStudentId] = React.useState<number | ''>('');
   const [name, setName] = React.useState(courseGroup.name);
   const [sessionDay, setSessionDay] = React.useState(courseGroup.session_day);
   const [sessionTime, setSessionTime] = React.useState(courseGroup.session_time);
@@ -41,20 +55,69 @@ export function CourseGroupEditForm({ courseGroup, onCancel, onSuccess, onDelete
   const [submitStatus, setSubmitStatus] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [formErrors, setFormErrors] = React.useState<Record<string, string>>({});
 
+  const fetchEnrolledStudents = React.useCallback(async (): Promise<void> => {
+    try {
+      const response = await getUserCourseGroupEnrollmentsByCourseGroup(courseGroup.id.toString());
+      setEnrolledStudents(response);
+    } catch (error: unknown) {
+      logger.error('Failed to fetch enrolled students', error);
+      setEnrolledStudents([]);
+    }
+  }, [courseGroup.id]);
+
   React.useEffect(() => {
-    const fetchInstructors = async (): Promise<void> => {
+    const fetchUsersAndEnrollments = async (): Promise<void> => {
       try {
-        const response = await getAdminEduquestUsers();
-        setInstructors(response);
+        const [instructorsResponse, studentsResponse] = await Promise.all([
+          getAdminEduquestUsers(),
+          getStudentEduquestUsers(),
+        ]);
+        setInstructors(instructorsResponse);
+        setStudents(studentsResponse);
+        await fetchEnrolledStudents();
       } catch (error: unknown) {
-        logger.error('Failed to fetch instructors', error);
+        logger.error('Failed to fetch users and enrollments', error);
       } finally {
         setLoadingInstructors(false);
+        setLoadingStudents(false);
       }
     };
 
-    void fetchInstructors();
-  }, []);
+    void fetchUsersAndEnrollments();
+  }, [fetchEnrolledStudents]);
+
+  const handleAddStudent = async (): Promise<void> => {
+    if (!selectedStudentId) {
+      setSubmitStatus({ type: 'error', message: 'Please select a student to add.' });
+      return;
+    }
+
+    try {
+      await createUserCourseGroupEnrollment({
+        course_group_id: courseGroup.id,
+        student_id: selectedStudentId,
+      });
+      setSelectedStudentId('');
+      setSubmitStatus({ type: 'success', message: 'Student added to group.' });
+      await fetchEnrolledStudents();
+      await onSuccess();
+    } catch (error: unknown) {
+      logger.error('Failed to add student to group', error);
+      setSubmitStatus({ type: 'error', message: 'Failed to add student to group.' });
+    }
+  };
+
+  const handleRemoveStudent = async (enrollmentId: number): Promise<void> => {
+    try {
+      await deleteUserCourseGroupEnrollment(enrollmentId.toString());
+      setSubmitStatus({ type: 'success', message: 'Student removed from group.' });
+      await fetchEnrolledStudents();
+      await onSuccess();
+    } catch (error: unknown) {
+      logger.error('Failed to remove student from group', error);
+      setSubmitStatus({ type: 'error', message: 'Failed to remove student from group.' });
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -202,6 +265,69 @@ export function CourseGroupEditForm({ courseGroup, onCancel, onSuccess, onDelete
                 </Select>
                 {formErrors.instructor ? <FormHelperText>{formErrors.instructor}</FormHelperText> : null}
               </FormControl>
+            </Grid>
+          </Grid>
+
+          <Divider sx={{ my: 3 }} />
+          <Typography variant="h6" sx={{ mb: 2 }}>Students in Group</Typography>
+          <Grid container spacing={2}>
+            <Grid md={8} xs={12}>
+              <FormControl fullWidth disabled={loadingStudents}>
+                <FormLabel htmlFor="student-add-select">Add Student</FormLabel>
+                <Select
+                  id="student-add-select"
+                  value={selectedStudentId}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setSelectedStudentId(value === '' ? '' : Number(value));
+                  }}
+                  size="small"
+                  displayEmpty
+                >
+                  <MenuItem value="">
+                    <em>Select a student</em>
+                  </MenuItem>
+                  {students
+                    .filter((student) => !enrolledStudents.some((enrollment) => enrollment.student_id === student.id))
+                    .map((student) => (
+                      <MenuItem key={student.id} value={student.id}>
+                        {student.nickname} ({student.email})
+                      </MenuItem>
+                    ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid md={4} xs={12} sx={{ display: 'flex', alignItems: 'end' }}>
+              <Button variant="outlined" onClick={() => { void handleAddStudent(); }} disabled={loadingStudents || !selectedStudentId}>
+                Add Student
+              </Button>
+            </Grid>
+            <Grid xs={12}>
+              {enrolledStudents.length > 0 ? (
+                <List dense disablePadding>
+                  {enrolledStudents.map((enrollment) => (
+                    <ListItem
+                      key={enrollment.id}
+                      secondaryAction={
+                        <Button
+                          size="small"
+                          color="error"
+                          onClick={() => { void handleRemoveStudent(enrollment.id); }}
+                        >
+                          Remove
+                        </Button>
+                      }
+                    >
+                      <ListItemText
+                        primary={enrollment.student?.nickname || `Student ID ${String(enrollment.student_id)}`}
+                        secondary={enrollment.student?.email || ''}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Typography variant="body2" color="text.secondary">No students enrolled in this group.</Typography>
+              )}
             </Grid>
           </Grid>
         </CardContent>

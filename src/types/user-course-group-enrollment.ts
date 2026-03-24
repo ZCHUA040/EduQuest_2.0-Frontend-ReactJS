@@ -4,6 +4,7 @@ import type {CourseGroup, CourseGroupSummary} from "@/types/course-group";
 export interface UserCourseGroupEnrollment {
   course_group: CourseGroup
   student_id: EduquestUserSummary['id']
+  student?: EduquestUserSummary
   id: number
   enrolled_on: string
   completed_on: string | null

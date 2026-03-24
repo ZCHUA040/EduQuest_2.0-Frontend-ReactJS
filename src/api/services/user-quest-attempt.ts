@@ -41,6 +41,10 @@ export const updateUserQuestAttemptByQuestAsSubmitted = async (questId: string):
   await apiService.post(`/api/user-quest-attempts/set_all_attempts_submitted_by_quest/?quest_id=${questId}`);
 }
 
+export const regradeUserQuestAttemptsByQuest = async (questId: string): Promise<void> => {
+  await apiService.post(`/api/user-quest-attempts/regrade_by_quest/?quest_id=${questId}`);
+}
+
 export const deleteUserQuestAttempt = async (id: string): Promise<void> => {
   await apiService.delete(`/api/user-quest-attempts/${id}/`);
 }

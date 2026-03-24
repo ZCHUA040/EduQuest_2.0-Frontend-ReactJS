@@ -1,5 +1,8 @@
 import apiService from "@/api/api-service";
-import type { UserCourseGroupEnrollment } from "@/types/user-course-group-enrollment";
+import type {
+  UserCourseGroupEnrollment,
+  UserCourseGroupEnrollmentNewForm
+} from "@/types/user-course-group-enrollment";
 
 
 export const getUserCourseGroupEnrollments = async (): Promise<UserCourseGroupEnrollment[]> => {
@@ -22,8 +25,17 @@ export const getUserCourseGroupEnrollmentsByCourseGroupAndUser = async (courseGr
   return response.data;
 }
 
-export const createUserCourseGroupEnrollment = async (userCourseGroupEnrollmentNewForm: UserCourseGroupEnrollment): Promise<UserCourseGroupEnrollment> => {
+export const getUserCourseGroupEnrollmentsByCourseGroup = async (courseGroupId: string): Promise<UserCourseGroupEnrollment[]> => {
+  const response = await apiService.get<UserCourseGroupEnrollment[]>(`/api/user-course-group-enrollments/by_course_group/?course_group_id=${courseGroupId}`);
+  return response.data;
+}
+
+export const createUserCourseGroupEnrollment = async (userCourseGroupEnrollmentNewForm: UserCourseGroupEnrollmentNewForm): Promise<UserCourseGroupEnrollment> => {
   const response = await apiService.post<UserCourseGroupEnrollment>('/api/user-course-group-enrollments/', userCourseGroupEnrollmentNewForm);
   return response.data;
+}
+
+export const deleteUserCourseGroupEnrollment = async (id: string): Promise<void> => {
+  await apiService.delete(`/api/user-course-group-enrollments/${id}/`);
 }
 

@@ -4,36 +4,25 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import {ImportCard} from "@/components/dashboard/import/import-card";
 import type { Question } from '@/types/question';
-import {type AggregatedResult, ImportCardQuestion} from "@/components/dashboard/import/import-card-question";
-import {ImportCardUserAttempt} from "@/components/dashboard/import/import-card-user-attempt";
 import {type Quest} from "@/types/quest";
-import {type UserAnswerAttempt} from "@/types/user-answer-attempt";
 import {logger} from "@/lib/default-logger";
+import Alert from "@mui/material/Alert";
+import RouterLink from "next/link";
 
 
 
 export default function Page({ params }: { params: { courseGroupId: string } }): React.JSX.Element {
 
-  const [questions, setQuestions] = React.useState<Question[]>([]);
   const [newQuestId, setNewQuestId] = React.useState<Quest['id'] | null>(null);
-
-  const [userAnswerAttempts, setUserAnswerAttempts] = React.useState<UserAnswerAttempt[]>([]);
-  const [aggregatedResults, setAggregatedResults] = React.useState<AggregatedResult[]>([]);
+  const [imported, setImported] = React.useState(false);
 
   const handleQuestions = (q: Question[]): void => {
-    setQuestions(q);
     if (q.length > 0) {
       setNewQuestId(q[0].quest_id);
+      setImported(true);
     } else {
       logger.error('No questions found');
     }
-  }
-
-  const handleResultAndUserAnswerAttempts = (results: AggregatedResult[], attempts: UserAnswerAttempt[]): void => {
-    // To display the aggregated results
-    setAggregatedResults(results);
-    // To calculate the total score
-    setUserAnswerAttempts(attempts)
   }
 
   return (
@@ -46,25 +35,18 @@ export default function Page({ params }: { params: { courseGroupId: string } }):
 
 
       </Stack>
-      { questions.length === 0 &&
+      {!imported ? (
         <ImportCard courseGroupId={params.courseGroupId} onImportSuccess={handleQuestions}/>
-      }
-
-      { questions.length > 0 && newQuestId && aggregatedResults.length === 0 ?
-        <ImportCardQuestion
-          questions={questions}
-          newQuestId={newQuestId}
-          onAggregationComplete={handleResultAndUserAnswerAttempts}
-        /> : null
-      }
-
-      { aggregatedResults.length > 0 && userAnswerAttempts.length > 0 && newQuestId ?
-        <ImportCardUserAttempt
-          aggregatedResults={aggregatedResults}
-          userAnswerAttempts={userAnswerAttempts}
-          newQuestId={newQuestId}
-        /> : null
-      }
+      ) : (
+        <Alert severity="success">
+          Quest import successful. Edit the quest to update correct answers and regrade student attempts.
+          {newQuestId ? (
+            <>
+              {' '}<RouterLink href={`/dashboard/quest/${newQuestId.toString()}`}>Go to Quest</RouterLink>
+            </>
+          ) : null}
+        </Alert>
+      )}
 
     </Stack>
   );
