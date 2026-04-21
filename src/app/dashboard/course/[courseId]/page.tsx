@@ -50,7 +50,7 @@ import {getUserCourseGroupEnrollmentsByCourseAndUser} from "@/api/services/user-
 import type {UserCourseGroupEnrollment} from "@/types/user-course-group-enrollment";
 import {SkeletonCourseGroupCard} from "@/components/dashboard/skeleton/skeleton-course-group-card";
 import {LeaderboardTable} from "@/components/dashboard/leaderboard/leaderboard-table";
-
+import {ImportDataForm} from "@/components/dashboard/course/course-import-data";
 
 interface ExpandMoreProps extends IconButtonProps {
   expand: boolean;
@@ -79,6 +79,7 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
   const [showCreateQuestForm, setShowCreateQuestForm] = React.useState(false);
   const [showCreateCourseGroupForm, setShowCreateCourseGroupForm] = React.useState(false);
   const [showEditCourseGroupForm, setShowEditCourseGroupForm] = React.useState(false);
+  const [showImportDataForm, setShowImportDataForm] = React.useState(false);
   const [expanded, setExpanded] = React.useState(false);
   const [loadingQuests, setLoadingQuests] = React.useState(false);
   const [loadingCourse, setLoadingCourse] = React.useState(true);
@@ -112,6 +113,10 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
   const toggleEditCourseForm = (): void => {
     setShowEditCourseForm(!showEditCourseForm);
   };
+
+  const toggleImportDataForm = (): void => {
+    setShowImportDataForm(!showImportDataForm);
+  }
 
   const handleDialogOpen = (): void => {
     setOpenDialog(true);
@@ -243,6 +248,9 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
       <Stack direction="row"sx={{justifyContent: 'space-between'}}>
         <Button startIcon={<CaretLeftIcon fontSize="var(--icon-fontSize-md)"/>} component={RouterLink} href={paths.dashboard.course.all}>View all Courses</Button>
 
+        <Button variant="contained" onClick={toggleImportDataForm}>
+          Import
+        </Button>
       </Stack>
 
       {!showEditCourseForm && (
@@ -499,6 +507,13 @@ export default function Page({ params }: { params: { courseId: string } }) : Rea
         />
       ) : null}
 
+      {showImportDataForm && course ?
+        <ImportDataForm
+          open={showImportDataForm}
+          setOpen={setShowImportDataForm}
+        />
+        : null
+      }
 
       {loadingCourseGroups || loadingUserCourseGroupEnrollments ? (
         <SkeletonCourseGroupCard />
