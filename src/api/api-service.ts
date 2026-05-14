@@ -3,6 +3,7 @@
 import axios, { type AxiosError, type AxiosResponse } from 'axios';
 import { getToken } from "@/app/msal/msal";
 import { logger } from '@/lib/default-logger';
+import { getDemoAccessToken } from '@/lib/auth/client';
 
 // Create an Axios instance for general API calls
 const api = axios.create({
@@ -12,7 +13,7 @@ const api = axios.create({
 // Request interceptor to add Authorization header
 api.interceptors.request.use(
   async (config) => {
-    const token = await getToken();
+    const token = getDemoAccessToken() ?? await getToken();
     // logger.debug('api config.baseURL:', config.baseURL);
     // logger.debug('env backend url:', process.env.NEXT_PUBLIC_BACKEND_URL);
     if (token) {

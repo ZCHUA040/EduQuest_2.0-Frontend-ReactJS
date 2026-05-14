@@ -2,6 +2,7 @@ export const paths = {
   home: '/',
   auth: {
     signIn: '/auth/sign-in',
+    demoSignIn: '/auth/demo-sign-in',
   },
   dashboard: {
     overview: '/dashboard',

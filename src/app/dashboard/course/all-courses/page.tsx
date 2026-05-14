@@ -15,12 +15,15 @@ import { CourseNewForm } from "@/components/dashboard/course/course-new-form";
 import { CourseCard } from "@/components/dashboard/course/course-card";
 import { SkeletonCourseCard } from "@/components/dashboard/skeleton/skeleton-course-card";
 import { useUser } from "@/hooks/use-user";
+import { useRouter } from 'next/navigation';
+import { paths } from '@/paths';
 
 export default function Page(): React.JSX.Element {
   const [courses, setCourses] = React.useState<Course[]>([]);
   const [showForm, setShowForm] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
-  const { eduquestUser } = useUser();
+  const { eduquestUser, isLoading } = useUser();
+  const router = useRouter();
 
   const toggleForm = (): void => {
     setShowForm(!showForm);
@@ -47,11 +50,18 @@ export default function Page(): React.JSX.Element {
   };
 
   React.useEffect(() => {
-    fetchCourses().catch((error: unknown) => {
-      // This catch is optional since errors are handled in the service
-      logger.error('Unexpected error while fetching courses', error);
-    });
-  }, []);
+    if (!isLoading) {
+      if (!eduquestUser?.is_staff) {
+        router.replace(paths.dashboard.overview);
+        setLoading(false);
+        return;
+      }
+
+      fetchCourses().catch((error: unknown) => {
+        logger.error('Unexpected error while fetching courses', error);
+      });
+    }
+  }, [isLoading, eduquestUser, router]);
 
   return (
     <Stack spacing={3}>

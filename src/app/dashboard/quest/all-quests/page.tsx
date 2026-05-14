@@ -18,6 +18,7 @@ import FormControl from "@mui/material/FormControl";
 import {useUser} from "@/hooks/use-user";
 import RouterLink from "next/link";
 import {paths} from "@/paths";
+import { useRouter } from 'next/navigation';
 import Grid from '@mui/material/Unstable_Grid2';
 import {getNonPrivateQuests} from "@/api/services/quest";
 
@@ -29,7 +30,8 @@ export default function Page(): React.JSX.Element {
   const [loading, setLoading] = React.useState(true);
   const [selectedCourseId, setSelectedCourseId] = React.useState<string | null>(null);
   const [courseIds, setCourseIds] = React.useState<string[]>([]);
-  const { eduquestUser } = useUser();
+  const { eduquestUser, isLoading } = useUser();
+  const router = useRouter();
 
 
   const toggleForm = (): void => {
@@ -51,14 +53,22 @@ export default function Page(): React.JSX.Element {
 
 
   React.useEffect(() => {
-    const fetchData = async (): Promise<void> => {
-      await fetchQuests();
-    };
+    if (!isLoading) {
+      if (!eduquestUser?.is_staff) {
+        router.replace(paths.dashboard.overview);
+        setLoading(false);
+        return;
+      }
 
-    fetchData().catch((error: unknown) => {
-      logger.error('Failed to fetch data', error);
-    });
-  }, []);
+      const fetchData = async (): Promise<void> => {
+        await fetchQuests();
+      };
+
+      fetchData().catch((error: unknown) => {
+        logger.error('Failed to fetch data', error);
+      });
+    }
+  }, [isLoading, eduquestUser, router]);
 
   const handleCourseChange = (event: SelectChangeEvent): void => {
     setSelectedCourseId(event.target.value);

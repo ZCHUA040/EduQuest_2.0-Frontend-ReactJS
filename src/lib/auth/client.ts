@@ -7,6 +7,46 @@ import type { EduquestUser } from "@/types/eduquest-user";
 import { type AccountInfo } from "@azure/msal-browser";
 import { graphConfig, graphLoginRequest } from "@/app/msal/msal-config";
 
+const DEMO_AUTH_STORAGE_KEY = 'eduquest-demo-auth';
+
+interface DemoAuth {
+  access: string;
+  refresh: string;
+  user: EduquestUser;
+}
+
+function getStoredDemoAuth(): DemoAuth | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(DEMO_AUTH_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as DemoAuth;
+  } catch {
+    window.localStorage.removeItem(DEMO_AUTH_STORAGE_KEY);
+    return null;
+  }
+}
+
+function setStoredDemoAuth(auth: DemoAuth): void {
+  window.localStorage.setItem(DEMO_AUTH_STORAGE_KEY, JSON.stringify(auth));
+}
+
+function clearStoredDemoAuth(): void {
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(DEMO_AUTH_STORAGE_KEY);
+  }
+}
+
+export function getDemoAccessToken(): string | null {
+  return getStoredDemoAuth()?.access ?? null;
+}
+
 /**
  * Create a separate Axios instance for AuthClient to avoid circular dependencies.
  */
@@ -19,7 +59,7 @@ authApi.interceptors.request.use(
   async (config) => {
     // logger.debug('auth config.baseURL:', config.baseURL);
     // logger.debug('auth env backend url:', process.env.NEXT_PUBLIC_BACKEND_URL);
-    const token = await getToken();
+    const token = getDemoAccessToken() ?? await getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     } else {
@@ -40,6 +80,7 @@ class AuthClient {
    */
   async signInWithMsal(): Promise<{ error?: string }> {
     try {
+      clearStoredDemoAuth();
       msalInstance.setActiveAccount(null);
       await handleLoginRedirect();
       return {};
@@ -47,6 +88,22 @@ class AuthClient {
       const err = error as Error;
       logger.error('Error signing in', err);
       return { error: err.message };
+    }
+  }
+
+  async signInAsDemo(email: string, password: string): Promise<{ error?: string }> {
+    try {
+      const response: AxiosResponse<DemoAuth> = await axios.post<DemoAuth>(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL ?? ''}/api/auth/demo-login/`,
+        { email, password }
+      );
+      setStoredDemoAuth(response.data);
+      msalInstance.setActiveAccount(null);
+      return {};
+    } catch (error) {
+      const err = error as Error & { response?: { data?: { detail?: string } } };
+      logger.error('Error signing in demo user', err);
+      return { error: err.response?.data?.detail ?? err.message };
     }
   }
 
@@ -61,6 +118,24 @@ class AuthClient {
     }
     error?: string
   }> {
+    const demoAuth = getStoredDemoAuth();
+    if (demoAuth) {
+      return {
+        data: {
+          user: {
+            homeAccountId: `demo-${String(demoAuth.user.id)}`,
+            environment: 'demo',
+            tenantId: 'demo',
+            username: demoAuth.user.email,
+            localAccountId: String(demoAuth.user.id),
+            name: demoAuth.user.nickname,
+          } as AccountInfo,
+          eduquestUser: demoAuth.user,
+          avatar: ''
+        }
+      };
+    }
+
     const msalUser = msalInstance.getActiveAccount();
     if (!msalUser) {
       logger.warn('MSAL: No active user found');
@@ -191,6 +266,10 @@ class AuthClient {
    */
   async signOutMsal(): Promise<{ error?: string }> {
     try {
+      clearStoredDemoAuth();
+      if (!msalInstance.getActiveAccount()) {
+        return {};
+      }
       handleLogout('redirect');
       return {};
     } catch (error) {

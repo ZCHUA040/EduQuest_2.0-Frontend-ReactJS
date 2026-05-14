@@ -21,10 +21,19 @@ export function SideNav(): React.JSX.Element {
   const pathname = usePathname();
   const { eduquestUser } = useUser();
 
-  // Filter out the 'import' and 'eduquest-user' item if the user is not a staff member
-  const filteredNavItems = eduquestUser?.is_staff ? navItems : navItems.filter(
-    item => item.key !== 'import' && item.key !== 'eduquest-user' && item.key !== 'insights'
-  );
+  const filteredNavItems = eduquestUser?.is_staff ? navItems : navItems
+    .filter((item) => item.key !== 'import' && item.key !== 'eduquest-user' && item.key !== 'insights')
+    .map((item) => {
+      if (item.key === 'course' && item.items) {
+        return { ...item, items: item.items.filter((child) => child.key === 'my-courses') };
+      }
+
+      if (item.key === 'quest' && item.items) {
+        return { ...item, items: item.items.filter((child) => child.key === 'my-quests') };
+      }
+
+      return item;
+    });
 
   return (
     <Box

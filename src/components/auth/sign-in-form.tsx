@@ -3,7 +3,7 @@ import * as React from 'react';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { SignInButton } from '@/components/auth/sign-in-button';
+import { DemoSignInButton, SignInButton } from '@/components/auth/sign-in-button';
 import { useTheme } from '@mui/material/styles';
 import { CheckSquareOffset as CheckSquareOffsetIcon } from "@phosphor-icons/react/dist/ssr/CheckSquareOffset";
 import { Ranking as RankingIcon } from "@phosphor-icons/react/dist/ssr/Ranking";
@@ -27,6 +27,7 @@ export function SignInForm({ error }: SignInFormProps): React.JSX.Element {
         A platform for you to learn and earn.
       </Typography>
       <SignInButton />
+      <DemoSignInButton />
       { error ? <Alert severity="error">{error}</Alert>
         :
         <Alert severity="info">
